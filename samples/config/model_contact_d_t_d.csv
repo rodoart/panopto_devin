@@ -1,0 +1,4 @@
+model_id,contact_email,contact_role,notify_on_ambar,notify_on_red,notify_on_missing,process_date
+1079_cta_lvl,owner@example.com,OWNER,true,true,true,2025-10-15
+1079_cta_lvl,analyst@example.com,ANALYST,true,true,false,2025-10-15
+1079_cta_lvl,stakeholder@example.com,STAKEHOLDER,false,true,true,2025-10-15

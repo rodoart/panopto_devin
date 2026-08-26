@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mecv"
+version = "0.1.0"
+description = "Módulo de pruebas de estabilidad y calidad de variables"
+requires-python = ">=3.9"
+dependencies = [
+    "pyspark==3.3.2",
+    "psycopg2-binary>=2.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mecv*"]

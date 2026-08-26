@@ -1,0 +1,7 @@
+{
+  "sender_name": "MECV Alertas",
+  "sender_email": "alerts@example.com",
+  "reply_to": "noreply@example.com",
+  "subject_prefix": "[MECV]",
+  "logo_url": ""
+}

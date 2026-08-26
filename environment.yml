@@ -1,0 +1,21 @@
+name: panopto
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.9.20
+  - spark=3.3.2.3
+  - pip
+  - cxx-compiler
+  - postgresql
+  - pip:
+      - "apache-airflow==2.8.4"
+      - "argcomplete<3"
+      - "apache-airflow-providers-apache-spark"
+      - "apache-airflow-providers-common-sql"
+      - "apache-airflow-providers-jdbc"
+      - "apache-airflow-providers-postgres"
+      - "impyla"
+      - "psycopg2-binary>=2.9"

@@ -1,0 +1,7 @@
+process_date,model_id,variable,var_type,data_type,source_type,source_schema,source_table,source_column,information_date_column,partition_columns,is_monotonic
+2025-10-15,1079_cta_lvl,mean_var_1_6m,raw,numeric,HIVE,gcprmsbx_work,hive:gcprmsbx_work.raw_1079,mean_var_1_6m,information_date,"[""information_date""]",false
+2025-10-15,1079_cta_lvl,category_city,raw,categorical,HIVE,gcprmsbx_work,hive:gcprmsbx_work.raw_1079,category_city,information_date,"[""information_date""]",false
+2025-10-15,1079_cta_lvl,input_var_a,input,numeric,HIVE,gcprmsbx_work,hive:gcprmsbx_work.input_1079,input_var_a,information_date,"[""information_date""]",false
+2025-10-15,1079_cta_lvl,transformed_var_a,transformed,numeric,HIVE,gcprmsbx_work,hive:gcprmsbx_work.transformed_1079,transformed_var_a,information_date,"[""information_date""]",false
+2025-10-15,1079_cta_lvl,score,score,numeric,PARQUET,,parquet:/data/parquets/score_1079,score,information_date,[],false
+2025-10-15,1079_cta_lvl,target,target,binary,HIVE,gcprmsbx_work,hive:gcprmsbx_work.target_1079,target,information_date,"[""information_date""]",false

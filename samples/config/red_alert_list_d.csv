@@ -1,0 +1,3 @@
+email,name,is_active,added_date
+risk@example.com,Global Risk,true,2025-01-01
+operations@example.com,Operations,true,2025-01-15

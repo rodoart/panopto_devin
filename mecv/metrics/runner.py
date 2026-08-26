@@ -1,0 +1,375 @@
+from collections import defaultdict
+from typing import Dict, List, Optional
+
+import pyspark.sql.functions as F
+from pyspark.sql import SparkSession
+
+from mecv.data.reader import DataReader
+from mecv.data.sources import DataSourceSpec
+from mecv.metrics.base import MetricRegistry
+from mecv.metrics.result import MetricResult
+from mecv.metrics.summary import VariableSummaryBuilder
+
+
+class MissingDataError(Exception):
+    pass
+
+
+DEFAULT_THRESHOLDS = {
+    "null_rate": {"threshold_ambar": 0.05, "threshold_red": 0.10},
+    "cardinality_ratio": {"threshold_red": 0.95},
+    "outlier_rate": {"threshold_ambar": 0.03, "threshold_red": 0.06},
+    "dominant_category_rate": {"threshold_red": 0.90},
+    "category_composition_drift": {"threshold_ambar": 0.10, "threshold_red": 0.30},
+    "psi_canonical": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "psi_dynamic": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "psi_target": {"threshold_ambar": 0.05, "threshold_red": 0.10},
+    "range_violation": {"threshold_red": 1e-9},
+    "entropy": {"threshold_ambar": 0.15, "threshold_red": 0.30},
+    "approval_rate": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "tail_shift": {"threshold_ambar": 0.05, "threshold_red": 0.10},
+    "gini": {"threshold_ambar": 0.05, "threshold_red": 0.10},
+    "brier_score": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "lift_top_decile": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "event_rate": {"threshold_ambar": 0.20, "threshold_red": 0.40},
+    "ks_vs_dev": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "concentration_gini": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "psi_approved": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "psi_rejected": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "calibration_slope": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "ks_score_target": {"threshold_ambar": 0.05, "threshold_red": 0.10},
+    "correlation_drift": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "auc": {},
+}
+
+RELATIVE_METRICS = {
+    "gini",
+    "brier_score",
+    "lift_top_decile",
+    "entropy",
+    "approval_rate",
+    "event_rate",
+    "concentration_gini",
+    "calibration_slope",
+    "correlation_drift",
+}
+
+NEEDS_BASELINE_DATA = {
+    "psi_dynamic",
+    "tail_shift",
+    "ks_vs_dev",
+    "concentration_gini",
+    "psi_approved",
+    "psi_rejected",
+    "calibration_slope",
+    "ks_score_target",
+    "correlation_drift",
+}
+
+
+class MetricRunner:
+    def __init__(
+        self,
+        spark: SparkSession,
+        data_reader: DataReader,
+        join_keys: Optional[List[str]] = None,
+    ):
+        self.spark = spark
+        self.data_reader = data_reader
+        self.join_keys = join_keys or ["customer_id"]
+        self.summaries = []
+
+    def run(
+        self,
+        model_id: str,
+        information_date: str,
+        execution_id: str,
+        baseline_date: Optional[str] = None,
+    ) -> List[MetricResult]:
+        model_id = str(model_id)
+        information_date = str(information_date)
+        model_summary = self._load_model_summary(model_id)
+        variables = self._load_variable_metadata(model_id)
+        thresholds_table = self._load_thresholds_table(model_id)
+        metric_threshold_auto = self._load_metric_threshold_auto(model_id)
+        category_policy = self._load_category_policy(model_id)
+        csi_bins = self._load_csi_bins(model_id)
+
+        cut_off = model_summary.get("cut_off_probability", 0.5)
+        results: List[MetricResult] = []
+        score_df = None
+        target_df = None
+        score_baseline = None
+        target_baseline = None
+        score_col_name = None
+        target_col_name = None
+        input_numeric = []
+
+        for row in variables:
+            var = row["variable"]
+            var_type = row["var_type"]
+            data_type = row["data_type"]
+            info_col = row["information_date_column"]
+            spec = DataSourceSpec.from_metadata(
+                source_table=row["source_table"],
+                source_column=row["source_column"],
+                information_date_column=info_col,
+                partition_columns=row["partition_columns"],
+            )
+            current, baseline = self._read_data(spec, var, information_date, baseline_date)
+            if current.count() == 0:
+                raise MissingDataError(f"no data for {var} on {information_date}")
+            self.summaries.extend(
+                VariableSummaryBuilder.build(
+                    current,
+                    var,
+                    var_type,
+                    data_type,
+                    model_id,
+                    information_date,
+                    execution_id,
+                )
+            )
+            if var_type in ("raw", "input") and data_type == "numeric":
+                input_numeric.append((var, current, baseline))
+            if var_type == "score":
+                score_df = current
+                score_baseline = baseline
+                score_col_name = var
+            if var_type == "target":
+                target_df = current
+                target_baseline = baseline
+                target_col_name = var
+            metrics = self._metrics_for_variable(var_type, data_type)
+            for metric_name in metrics:
+                if metric_name in NEEDS_BASELINE_DATA and baseline is None:
+                    continue
+                has_baseline = baseline is not None
+                thresholds = self._thresholds_for(
+                    var,
+                    var_type,
+                    metric_name,
+                    thresholds_table,
+                    metric_threshold_auto,
+                    has_baseline,
+                )
+                params = {
+                    "model_id": model_id,
+                    "information_date": information_date,
+                    "execution_id": execution_id,
+                    "variable": var,
+                    "var_type": var_type,
+                    "data_type": data_type,
+                    "cut_off_probability": cut_off,
+                    "n_bins": 10,
+                }
+                if var_type == "score":
+                    params["score_col"] = var
+                if var_type == "target":
+                    params["target_col"] = var
+                if metric_name in ("psi_canonical", "psi_target", "psi_approved", "psi_rejected"):
+                    params["bins"] = csi_bins.get((var, var_type), [])
+                if metric_name == "category_composition_drift":
+                    params["top_n"] = category_policy.get(var, {}).get("top_n_threshold", 10)
+                metric_cls = MetricRegistry.get(metric_name)
+                try:
+                    res = metric_cls().calculate(current, baseline, thresholds, **params)
+                    results.append(res)
+                except Exception:
+                    continue
+
+        if score_df is not None and target_df is not None and score_col_name and target_col_name:
+            joined = self._join_conjugate(score_df, target_df, score_col_name, target_col_name)
+            baseline_joined = None
+            if score_baseline is not None and target_baseline is not None:
+                baseline_joined = self._join_conjugate(score_baseline, target_baseline, score_col_name, target_col_name)
+            for metric_name in ("auc", "gini", "brier_score", "lift_top_decile", "calibration_slope", "ks_score_target"):
+                thresholds = self._thresholds_for(
+                    "__SCORE__",
+                    "score",
+                    metric_name,
+                    {},
+                    metric_threshold_auto,
+                    baseline_joined is not None,
+                )
+                params = {
+                    "model_id": model_id,
+                    "information_date": information_date,
+                    "execution_id": execution_id,
+                    "variable": "__SCORE__",
+                    "var_type": "conjugate",
+                    "data_type": "numeric",
+                    "score_col": "score",
+                    "target_col": "target",
+                }
+                metric_cls = MetricRegistry.get(metric_name)
+                try:
+                    res = metric_cls().calculate(joined, baseline_joined, thresholds, **params)
+                    results.append(res)
+                except Exception:
+                    continue
+
+        if len(input_numeric) >= 2:
+            joined_current = self._join_inputs([df for _, df, _ in input_numeric])
+            joined_baseline = None
+            if all(b is not None for _, _, b in input_numeric):
+                joined_baseline = self._join_inputs([b for _, _, b in input_numeric])
+            thresholds = self._thresholds_for(
+                "__INPUTS__",
+                "input",
+                "correlation_drift",
+                {},
+                metric_threshold_auto,
+                joined_baseline is not None,
+            )
+            params = {
+                "model_id": model_id,
+                "information_date": information_date,
+                "execution_id": execution_id,
+                "variable": "__INPUTS__",
+                "var_type": "input",
+                "data_type": "numeric",
+            }
+            try:
+                metric_cls = MetricRegistry.get("correlation_drift")
+                res = metric_cls().calculate(joined_current, joined_baseline, thresholds, **params)
+                results.append(res)
+            except Exception:
+                pass
+
+        return results
+
+    def _join_inputs(self, dfs):
+        joined = dfs[0]
+        join_cols = [c for c in self.join_keys if c in joined.columns]
+        for df in dfs[1:]:
+            on = [c for c in join_cols if c in df.columns]
+            joined = joined.join(df, on=on, how="inner")
+        return joined
+
+    def _load_model_summary(self, model_id: str) -> Dict:
+        df = self._latest_partition("model_summary_csi_psi_d_t_d", model_id)
+        rows = df.collect()
+        return rows[0].asDict() if rows else {}
+
+    def _load_variable_metadata(self, model_id: str) -> List[Dict]:
+        df = self._latest_partition("variable_metadata_d_t_d", model_id)
+        return [r.asDict() for r in df.collect()]
+
+    def _load_thresholds_table(self, model_id: str) -> Dict:
+        df = self._latest_partition("tresholds_table_d_t_d", model_id)
+        out = {}
+        for r in df.collect():
+            out[(r["variable"], r["type"])] = r.asDict()
+        return out
+
+    def _load_metric_threshold_auto(self, model_id: str) -> Dict:
+        df = self._latest_partition("metric_threshold_auto_d_t_d", model_id)
+        out = {}
+        for r in df.collect():
+            out[(r["variable"], r["metric_name"])] = r.asDict()
+        return out
+
+    def _load_category_policy(self, model_id: str) -> Dict:
+        df = self._latest_partition("category_policy_d_t_d", model_id)
+        out = {}
+        for r in df.collect():
+            out[r["variable"]] = r.asDict()
+        return out
+
+    def _load_csi_bins(self, model_id: str) -> Dict:
+        df = self._latest_partition("csi_psi_table_d_t_d", model_id)
+        out = defaultdict(list)
+        for r in df.collect():
+            d = r.asDict()
+            out[(d["variable"], d["type"])].append(d)
+        return dict(out)
+
+    def _latest_partition(self, table: str, model_id: str):
+        return self.spark.sql(f"""
+            SELECT * FROM {table}
+            WHERE process_date = (
+                SELECT max(process_date) FROM {table} WHERE model_id = '{model_id}'
+            ) AND model_id = '{model_id}'
+        """)
+
+    def _read_data(
+        self,
+        spec: DataSourceSpec,
+        variable: str,
+        current_date: str,
+        baseline_date: Optional[str],
+    ):
+        current = self.data_reader.read(spec, current_date, extra_cols=self.join_keys)
+        current = current.withColumnRenamed(spec.column, variable)
+        baseline = None
+        if baseline_date:
+            baseline = self.data_reader.read(spec, baseline_date, extra_cols=self.join_keys)
+            baseline = baseline.withColumnRenamed(spec.column, variable)
+        return current, baseline
+
+    def _metrics_for_variable(self, var_type: str, data_type: str) -> List[str]:
+        metrics = ["null_rate"]
+        if var_type in ("raw", "input", "transformed"):
+            metrics.append("cardinality_ratio")
+            if data_type == "numeric":
+                metrics.extend(["outlier_rate", "psi_canonical", "psi_dynamic", "ks_vs_dev"])
+            elif data_type == "categorical":
+                metrics.extend([
+                    "dominant_category_rate",
+                    "category_composition_drift",
+                    "psi_canonical",
+                    "psi_dynamic",
+                ])
+        elif var_type == "score":
+            metrics.extend([
+                "range_violation",
+                "null_rate",
+                "entropy",
+                "approval_rate",
+                "psi_canonical",
+                "psi_dynamic",
+                "tail_shift",
+                "concentration_gini",
+                "psi_approved",
+                "psi_rejected",
+            ])
+        elif var_type == "target":
+            metrics.extend(["event_rate", "psi_target"])
+        return metrics
+
+    def _thresholds_for(
+        self,
+        variable: str,
+        var_type: str,
+        metric_name: str,
+        thresholds_table: Dict,
+        metric_threshold_auto: Dict,
+        has_baseline: bool,
+    ) -> Dict:
+        thresholds = dict(DEFAULT_THRESHOLDS.get(metric_name, {}))
+        auto = metric_threshold_auto.get((variable, metric_name), {})
+        for key in ("threshold_ambar", "threshold_red"):
+            if auto.get(key) is not None:
+                thresholds[key] = auto[key]
+        if metric_name in ("psi_canonical", "psi_target"):
+            t = thresholds_table.get((variable, var_type), {})
+            if t.get("psi_threshold_ambar") is not None:
+                thresholds["threshold_ambar"] = t["psi_threshold_ambar"]
+            if t.get("psi_threshold_red") is not None:
+                thresholds["threshold_red"] = t["psi_threshold_red"]
+        if metric_name == "psi_dynamic":
+            t = thresholds_table.get((variable, var_type), {})
+            if t.get("psi_variation_threshold_ambar") is not None:
+                thresholds["threshold_ambar"] = t["psi_variation_threshold_ambar"]
+            if t.get("psi_variation_threshold_red") is not None:
+                thresholds["threshold_red"] = t["psi_variation_threshold_red"]
+        if not has_baseline and metric_name in RELATIVE_METRICS:
+            thresholds = {k: v for k, v in thresholds.items() if k not in ("threshold_ambar", "threshold_red")}
+        return thresholds
+
+    def _join_conjugate(self, score_df, target_df, score_col, target_col):
+        join_cols = [c for c in self.join_keys if c in score_df.columns and c in target_df.columns]
+        s = score_df.withColumnRenamed(score_col, "score")
+        t = target_df.withColumnRenamed(target_col, "target")
+        return s.join(t, on=join_cols, how="inner")

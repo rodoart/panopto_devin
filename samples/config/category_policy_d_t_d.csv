@@ -1,0 +1,2 @@
+process_date,model_id,variable,top_n_threshold,critical_top_k
+2025-10-15,1079_cta_lvl,category_city,50,5

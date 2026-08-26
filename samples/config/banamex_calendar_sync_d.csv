@@ -1,0 +1,6 @@
+calendar_date,is_business_day,is_holiday,holiday_name,sync_timestamp
+2025-10-13,true,false,,2025-10-13T06:00:00
+2025-10-14,true,false,,2025-10-14T06:00:00
+2025-10-15,true,false,,2025-10-15T06:00:00
+2025-10-16,false,true,Dia festivo,2025-10-16T06:00:00
+2025-10-17,true,false,,2025-10-17T06:00:00

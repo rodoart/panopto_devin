@@ -1,0 +1,2 @@
+process_date,model_id,model_name,model_description,model_type,status,cut_off_probability,frequency,window_value,window_unit,trigger_csi_ambar,trigger_csi_red,trigger_csi_variation_ambar,trigger_csi_variation_red,score_alert_ambar_pct,score_alert_red_pct,score_red_equivalent
+2025-10-15,1079_cta_lvl,Modelo 1079 Cuenta Level,Modelo de nivel de cuenta,binary,active,0.35,daily,3,weeks,0.1,0.2,0.05,0.1,0.30,0.15,2

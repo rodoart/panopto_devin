@@ -1,0 +1,6 @@
+process_date,model_id,variable,type,psi_threshold_ambar,psi_threshold_red,psi_variation_threshold_ambar,psi_variation_threshold_red
+2025-10-15,1079_cta_lvl,mean_var_1_6m,raw,0.10,0.20,0.05,0.10
+2025-10-15,1079_cta_lvl,category_city,raw,0.10,0.20,0.05,0.10
+2025-10-15,1079_cta_lvl,input_var_a,input,0.10,0.20,0.05,0.10
+2025-10-15,1079_cta_lvl,transformed_var_a,transformed,0.10,0.20,0.05,0.10
+2025-10-15,1079_cta_lvl,score,score,0.05,0.10,0.03,0.05

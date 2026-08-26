@@ -1,0 +1,5 @@
+process_date,model_id,var_type,red_equivalent,alert_ambar_pct,alert_red_pct
+2025-10-15,1079_cta_lvl,raw,3,0.60,0.40
+2025-10-15,1079_cta_lvl,input,3,0.50,0.30
+2025-10-15,1079_cta_lvl,transformed,3,0.50,0.30
+2025-10-15,1079_cta_lvl,score,2,0.30,0.15
