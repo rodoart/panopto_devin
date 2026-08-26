@@ -1,0 +1,144 @@
+import calendar as cal
+from datetime import datetime, timedelta
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.sensors.python import PythonSensor
+
+
+def external_calendar_ready(**context):
+    from mecv.sessions import SparkSessionBuilder
+
+    ds = context["ds"]
+    year = int(ds[:4])
+    expected_days = 366 if cal.isleap(year) else 365
+    external_table = "banamex_calendar_ext_d"
+    spark = SparkSessionBuilder(app_name="mecv_calendar_loader_check").build()
+    try:
+        count = spark.sql(f"""
+            SELECT count(*) AS c FROM {external_table}
+            WHERE calendar_date >= '{year}-01-01' AND calendar_date <= '{year}-12-31'
+        """).collect()[0]["c"]
+    except Exception:
+        return False
+    return count >= expected_days
+
+
+def convert_external_to_hive(**context):
+    from mecv.sessions import SparkSessionBuilder
+
+    ds = context["ds"]
+    year = int(ds[:4])
+    external_table = "banamex_calendar_ext_d"
+    spark = SparkSessionBuilder(app_name="mecv_calendar_loader_convert").build()
+    spark.sql(f"""
+        INSERT OVERWRITE TABLE banamex_calendar_d_t_d
+        SELECT
+            calendar_date,
+            is_business_day,
+            is_holiday,
+            holiday_name,
+            current_timestamp() AS sync_timestamp
+        FROM {external_table}
+        WHERE calendar_date >= '{year}-01-01' AND calendar_date <= '{year}-12-31'
+    """)
+
+
+def sync_hive_to_postgres(**context):
+    from mecv.sessions import PostgresSession, SparkSessionBuilder
+
+    ds = context["ds"]
+    year = int(ds[:4])
+    spark = SparkSessionBuilder(app_name="mecv_calendar_loader_sync").build()
+    psql = PostgresSession()
+    df = spark.sql(f"""
+        SELECT calendar_date, is_business_day, is_holiday, holiday_name
+        FROM banamex_calendar_d_t_d
+        WHERE calendar_date >= '{year}-01-01' AND calendar_date <= '{year}-12-31'
+    """)
+    rows = [
+        (r.calendar_date, r.is_business_day, r.is_holiday, r.holiday_name, datetime.now())
+        for r in df.collect()
+    ]
+    with psql.connection() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO banamex_calendar_sync_d
+                    (calendar_date, is_business_day, is_holiday, holiday_name, sync_timestamp)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (calendar_date)
+                DO UPDATE SET
+                    is_business_day = EXCLUDED.is_business_day,
+                    is_holiday = EXCLUDED.is_holiday,
+                    holiday_name = EXCLUDED.holiday_name,
+                    sync_timestamp = EXCLUDED.sync_timestamp
+            """,
+                rows,
+            )
+            conn.commit()
+
+
+def pause_dependent_dags(context):
+    from airflow import settings
+    from airflow.models import DagModel
+
+    session = settings.Session()
+    try:
+        current = context["dag"]["dag_id"]
+        for dag_model in session.query(DagModel).all():
+            if dag_model.dag_id != current and dag_model.dag_id.startswith("mecv_"):
+                dag_model.is_paused = True
+        session.commit()
+    finally:
+        session.close()
+
+
+def send_red_alert(context):
+    from mecv.alerts.dispatcher import EmailDispatcher
+
+    ds = context.get("ds")
+    run_id = context.get("run_id")
+    dispatcher = EmailDispatcher()
+    try:
+        dispatcher.dispatch(
+            model_id="__CALENDAR__",
+            information_date=ds,
+            aggregate_alerts=[],
+            metric_results=[],
+            model_name="Calendario Banamex",
+            missing_data=True,
+            missing_days=2,
+            execution_id=run_id,
+        )
+    except Exception:
+        pass
+
+
+def calendar_load_failure(context):
+    pause_dependent_dags(context)
+    send_red_alert(context)
+
+
+with DAG(
+    "mecv_calendar_loader",
+    default_args={
+        "owner": "mecv",
+        "start_date": datetime(2025, 1, 1),
+        "on_failure_callback": calendar_load_failure,
+    },
+    schedule="@yearly",
+    catchup=False,
+    tags=["mecv"],
+) as dag:
+    wait = PythonSensor(
+        task_id="wait_for_external_calendar",
+        python_callable=external_calendar_ready,
+        poke_interval=timedelta(hours=1),
+        timeout=timedelta(days=2),
+        mode="reschedule",
+        soft_fail=False,
+    )
+    convert = PythonOperator(task_id="convert_external_to_hive", python_callable=convert_external_to_hive)
+    sync = PythonOperator(task_id="sync_hive_to_postgres", python_callable=sync_hive_to_postgres)
+    wait >> convert >> sync

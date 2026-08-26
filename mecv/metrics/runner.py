@@ -1,9 +1,11 @@
 from collections import defaultdict
-from typing import Dict, List, Optional
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Union
 
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 
+from mecv.calendar import BanamexCalendar
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
 from mecv.metrics.base import MetricRegistry
@@ -73,10 +75,12 @@ class MetricRunner:
         spark: SparkSession,
         data_reader: DataReader,
         join_keys: Optional[List[str]] = None,
+        calendar: Optional[BanamexCalendar] = None,
     ):
         self.spark = spark
         self.data_reader = data_reader
         self.join_keys = join_keys or ["customer_id"]
+        self.calendar = calendar or BanamexCalendar()
         self.summaries = []
 
     def run(
@@ -105,10 +109,12 @@ class MetricRunner:
         target_col_name = None
         input_numeric = []
 
+        frequency = str(model_summary.get("frequency", "daily"))
         for row in variables:
             var = row["variable"]
             var_type = row["var_type"]
             data_type = row["data_type"]
+            reading_mode = str(row.get("reading_mode", "each"))
             info_col = row["information_date_column"]
             spec = DataSourceSpec.from_metadata(
                 source_table=row["source_table"],
@@ -116,7 +122,10 @@ class MetricRunner:
                 information_date_column=info_col,
                 partition_columns=row["partition_columns"],
             )
-            current, baseline = self._read_data(spec, var, information_date, baseline_date)
+            current_dates, baseline_dates = self._resolve_dates(
+                information_date, baseline_date, reading_mode, frequency
+            )
+            current, baseline = self._read_data(spec, var, current_dates, baseline_dates)
             if current.count() == 0:
                 raise MissingDataError(f"no data for {var} on {information_date}")
             self.summaries.extend(
@@ -297,16 +306,58 @@ class MetricRunner:
         self,
         spec: DataSourceSpec,
         variable: str,
-        current_date: str,
-        baseline_date: Optional[str],
+        current_dates: List[str],
+        baseline_dates: Optional[List[str]] = None,
     ):
-        current = self.data_reader.read(spec, current_date, extra_cols=self.join_keys)
+        current = self.data_reader.read(spec, current_dates, extra_cols=self.join_keys)
         current = current.withColumnRenamed(spec.column, variable)
         baseline = None
-        if baseline_date:
-            baseline = self.data_reader.read(spec, baseline_date, extra_cols=self.join_keys)
+        if baseline_dates:
+            baseline = self.data_reader.read(spec, baseline_dates, extra_cols=self.join_keys)
             baseline = baseline.withColumnRenamed(spec.column, variable)
         return current, baseline
+
+    def _period_dates(self, reference_date: str, reading_mode: str, frequency: str) -> List[str]:
+        period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
+        if reading_mode == "each" or period == "day":
+            return [reference_date]
+        if reading_mode == "first":
+            return [self.calendar.first_business_day_of_period(reference_date, period)]
+        if reading_mode == "last":
+            return [self.calendar.last_business_day_of_period(reference_date, period)]
+        return [reference_date]
+
+    def _previous_period_reference(self, reference_date: str, frequency: str) -> str:
+        d = datetime.fromisoformat(reference_date).date()
+        if frequency == "monthly":
+            if d.month == 1:
+                d = d.replace(year=d.year - 1, month=12)
+            else:
+                d = d.replace(month=d.month - 1)
+        elif frequency == "weekly":
+            d = d - timedelta(days=7)
+        else:
+            d = d - timedelta(days=1)
+        return d.isoformat()
+
+    def _resolve_dates(
+        self,
+        information_date: str,
+        baseline_date: Optional[str],
+        reading_mode: str,
+        frequency: str,
+    ):
+        current_dates = self._period_dates(information_date, reading_mode, frequency)
+        if reading_mode == "each":
+            if baseline_date:
+                baseline_dates = [baseline_date]
+            else:
+                prev = self.calendar.previous_business_days(information_date, 1)
+                baseline_dates = [prev[0].isoformat()] if prev else [information_date]
+        else:
+            prev_ref = self._previous_period_reference(information_date, frequency)
+            baseline_dates = self._period_dates(prev_ref, reading_mode, frequency)
+        return current_dates, baseline_dates
 
     def _metrics_for_variable(self, var_type: str, data_type: str) -> List[str]:
         metrics = ["null_rate"]

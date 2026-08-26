@@ -7,10 +7,11 @@ from airflow.operators.python import PythonOperator
 def sync_calendar():
     from mecv.sessions import PostgresSession, SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_sync").build()
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().date()
+    thirty_days_ago = (today - timedelta(days=30)).strftime("%Y-%m-%d")
     df = spark.sql(f"""
         SELECT * FROM banamex_calendar_d_t_d
-        WHERE calendar_date >= date_sub('{today}', 30)
+        WHERE calendar_date >= '{thirty_days_ago}'
     """)
     rows = df.collect()
     psql = PostgresSession()

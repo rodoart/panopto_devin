@@ -1,3 +1,4 @@
+import calendar as cal
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
@@ -40,11 +41,9 @@ class BanamexCalendar:
         if frequency in ("daily", "business_daily"):
             return reference_date.isoformat()
         if frequency == "weekly":
-            days = self.previous_business_days(reference_date, 5)
-            return days[-1].isoformat() if days else reference_date.isoformat()
+            return self.last_business_day_of_period(reference_date, "week")
         if frequency == "monthly":
-            days = self.previous_business_days(reference_date, 20)
-            return days[-1].isoformat() if days else reference_date.isoformat()
+            return self.last_business_day_of_period(reference_date, "month")
         return reference_date.isoformat()
 
     def next_business_day(self, calendar_date) -> Optional[date]:
@@ -62,3 +61,64 @@ class BanamexCalendar:
                 )
                 row = cur.fetchone()
         return row[0] if row else None
+
+    @staticmethod
+    def _to_date(calendar_date):
+        if isinstance(calendar_date, str):
+            return datetime.fromisoformat(calendar_date).date()
+        return calendar_date
+
+    def _period_bounds(self, calendar_date, period: str):
+        d = self._to_date(calendar_date)
+        if period == "month":
+            start = d.replace(day=1)
+            _, last_day = cal.monthrange(d.year, d.month)
+            end = d.replace(day=last_day)
+        elif period == "week":
+            start = d - timedelta(days=d.weekday())
+            end = start + timedelta(days=6)
+        else:
+            start = end = d
+        return start, end
+
+    def first_business_day_of_period(self, calendar_date, period: str) -> str:
+        start, end = self._period_bounds(calendar_date, period)
+        with self.psql.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT calendar_date
+                    FROM banamex_calendar_sync_d
+                    WHERE calendar_date >= %s AND calendar_date <= %s
+                      AND is_business_day = true
+                    ORDER BY calendar_date ASC
+                    LIMIT 1
+                """,
+                    (start, end),
+                )
+                row = cur.fetchone()
+        if row:
+            return row[0].isoformat()
+        d = self._to_date(calendar_date)
+        return d.isoformat()
+
+    def last_business_day_of_period(self, calendar_date, period: str) -> str:
+        start, end = self._period_bounds(calendar_date, period)
+        with self.psql.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT calendar_date
+                    FROM banamex_calendar_sync_d
+                    WHERE calendar_date >= %s AND calendar_date <= %s
+                      AND is_business_day = true
+                    ORDER BY calendar_date DESC
+                    LIMIT 1
+                """,
+                    (start, end),
+                )
+                row = cur.fetchone()
+        if row:
+            return row[0].isoformat()
+        d = self._to_date(calendar_date)
+        return d.isoformat()

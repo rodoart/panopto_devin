@@ -32,29 +32,31 @@ def dispatch_alerts(**context):
     for row in model_summary.collect():
         model_id = str(row.model_id)
         model_name = str(row.model_name)
+        frequency = row.get("frequency", "daily")
+        information_date = calendar.expected_information_date(frequency, today)
         try:
-            baseline_days = calendar.previous_business_days(today, 2)
+            baseline_days = calendar.previous_business_days(information_date, 2)
             baseline_date = baseline_days[0].isoformat() if baseline_days else None
-            runner = MetricRunner(spark, reader, join_keys=["customer_id"])
-            results = runner.run(model_id, today_str, execution_id, baseline_date=baseline_date)
+            runner = MetricRunner(spark, reader, join_keys=["customer_id"], calendar=calendar)
+            results = runner.run(model_id, information_date, execution_id, baseline_date=baseline_date)
             alerts = aggregator.aggregate(results)
             log = dispatcher.dispatch(
                 model_id=model_id,
-                information_date=today_str,
+                information_date=information_date,
                 aggregate_alerts=alerts,
                 metric_results=results,
                 model_name=model_name,
                 execution_id=execution_id,
             )
             email_row = dataclasses.asdict(log)
-            email_row["information_date"] = today_str
+            email_row["information_date"] = information_date
             email_row["model_id"] = model_id
             email_df = spark.createDataFrame([email_row])
-            writer.write_atomic(email_df, "mecv_email_log_d_t_d", model_id, today_str, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(email_df, "mecv_email_log_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         except MissingDataError:
             log = dispatcher.dispatch(
                 model_id=model_id,
-                information_date=today_str,
+                information_date=information_date,
                 aggregate_alerts=[],
                 metric_results=[],
                 model_name=model_name,
@@ -63,10 +65,10 @@ def dispatch_alerts(**context):
                 execution_id=execution_id,
             )
             email_row = dataclasses.asdict(log)
-            email_row["information_date"] = today_str
+            email_row["information_date"] = information_date
             email_row["model_id"] = model_id
             email_df = spark.createDataFrame([email_row])
-            writer.write_atomic(email_df, "mecv_email_log_d_t_d", model_id, today_str, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(email_df, "mecv_email_log_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         except Exception:
             continue
 

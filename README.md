@@ -16,6 +16,7 @@ cp .env.example .env
 | Tablas | Motor |
 |--------|-------|
 | Configuración (`model_summary_csi_psi_d_t_d`, `csi_psi_table_d_t_d`, `tresholds_table_d_t_d`, `alert_policy_d_t_d`, `category_policy_d_t_d`, `variable_metadata_d_t_d`) | Hive / Parquet |
+| Calendario (`banamex_calendar_d_t_d`) | Hive / Parquet |
 | Estado y resultados (`config_changelog_d_t_d`, `category_baseline_rank_d_t_d`, `metric_threshold_auto_d_t_d`, `mecv_metric_result_d_t_d`, `mecv_alert_aggregate_d_t_d`, `mecv_execution_log_d_t_d`, `mecv_email_log_d_t_d`, `mecv_staging_control_d_t_d`, `mecv_variable_summary_d_t_d`) | Hive / Parquet |
 | Calendario (`banamex_calendar_sync_d`) | PostgreSQL |
 | Contactos (`model_contact_d_t_d`) | PostgreSQL |
@@ -95,6 +96,13 @@ for r in results:
 
 `MetricRunner` lee `variable_metadata`, `model_summary`, `csi_psi_table`, `tresholds_table`, `metric_threshold_auto` y `category_policy` (última partición), ejecuta las métricas correspondientes por tipo de variable y, si existen `score` y `target`, genera las métricas conjugadas (`auc`, `gini`, `brier_score`, `lift_top_decile`).
 
+El campo `reading_mode` de `variable_metadata_d_t_d` controla qué filas del periodo leer:
+- `each` (default): un solo `information_date`.
+- `first`: primer día hábil del periodo (semana/mes).
+- `last`: último día hábil del periodo.
+
+El periodo se deriva de `model_summary.frequency` (`weekly`/`monthly`). `MetricRunner` calcula automáticamente la línea base del periodo anterior cuando el modo no es `each`.
+
 ## Alertas y notificaciones
 
 El remitente se configura en `config/email_config.json` (usa `config/email_config.example.json` como base):
@@ -141,5 +149,6 @@ Los DAGs están en `dags/`:
 | `mecv_alert_dispatcher` | Diaria | Genera agregados, arma emails HTML y despacha notificaciones; soporta alertas `MISSING_DATA`. |
 | `mecv_output_validator` | Diaria | Valida que existan datos del día en `mecv_metric_result` y `mecv_alert_aggregate`; placeholder para refresco de Tableau. |
 | `mecv_orphan_cleanup` | Semanal | Elimina directorios HDFS de `/tmp/mecv_staging` con más de 7 días. |
+| `mecv_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d`, convierte a `banamex_calendar_d_t_d` y sincroniza a `banamex_calendar_sync_d`. Si en 2 días no se actualiza, pausa los DAGs `mecv_*` y alerta a la lista roja. |
 
 Para activarlos en Airflow, asegúrate de que `PYTHONPATH` incluya la raíz del repo y que `dags/` esté en `AIRFLOW__CORE__DAGS_FOLDER`.

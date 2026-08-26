@@ -41,16 +41,16 @@ def run_production(**context):
     for model in models:
         model_id = str(model["model_id"])
         frequency = model.get("frequency", "daily")
+        information_date = calendar.expected_information_date(frequency, today)
         if frequency == "business_daily" and not is_business:
             continue
-        if frequency in ("weekly", "monthly"):
+        if frequency in ("weekly", "monthly") and information_date != today_str:
             continue
-        information_date = calendar.expected_information_date(frequency, today)
         start = dt.now()
         try:
             baseline_days = calendar.previous_business_days(information_date, 2)
             baseline_date = baseline_days[0].isoformat() if baseline_days else None
-            runner = MetricRunner(spark, reader, join_keys=["customer_id"])
+            runner = MetricRunner(spark, reader, join_keys=["customer_id"], calendar=calendar)
             results = runner.run(model_id, information_date, execution_id, baseline_date=baseline_date)
         except MissingDataError as exc:
             log_df = spark.createDataFrame([{

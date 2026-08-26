@@ -95,7 +95,8 @@ CREATE TABLE IF NOT EXISTS variable_metadata_d_t_d (
     source_column STRING,
     information_date_column STRING,
     partition_columns STRING,
-    is_monotonic BOOLEAN
+    is_monotonic BOOLEAN,
+    reading_mode STRING
 )
 PARTITIONED BY (process_date STRING, model_id STRING)
 STORED AS PARQUET
@@ -279,6 +280,18 @@ STORED AS PARQUET
 TBLPROPERTIES (
     'parquet.compress' = 'SNAPPY',
     'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
+);
+
+CREATE TABLE IF NOT EXISTS banamex_calendar_d_t_d (
+    calendar_date STRING,
+    is_business_day BOOLEAN,
+    is_holiday BOOLEAN,
+    holiday_name STRING,
+    sync_timestamp TIMESTAMP
+)
+STORED AS PARQUET
+TBLPROPERTIES (
+    'parquet.compress' = 'SNAPPY'
 );
 
 CREATE OR REPLACE VIEW mecv_dashboard_semaphore AS
