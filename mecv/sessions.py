@@ -1,7 +1,12 @@
 from typing import Any, Dict
+
 import psycopg2
 from pyspark.sql import SparkSession
+
 from mecv.config import Settings
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class SparkSessionBuilder:

@@ -8,9 +8,12 @@ from pyspark.sql import SparkSession
 from mecv.calendar import BanamexCalendar
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
+from mecv.logging import get_logger
 from mecv.metrics.base import MetricRegistry
 from mecv.metrics.result import MetricResult
 from mecv.metrics.summary import VariableSummaryBuilder
+
+logger = get_logger(__name__)
 
 
 class MissingDataError(Exception):
@@ -92,6 +95,7 @@ class MetricRunner:
     ) -> List[MetricResult]:
         model_id = str(model_id)
         information_date = str(information_date)
+        logger.info(f"running metrics for model {model_id}, information_date {information_date}")
         model_summary = self._load_model_summary(model_id)
         variables = self._load_variable_metadata(model_id)
         thresholds_table = self._load_thresholds_table(model_id)
@@ -184,7 +188,8 @@ class MetricRunner:
                 try:
                     res = metric_cls().calculate(current, baseline, thresholds, **params)
                     results.append(res)
-                except Exception:
+                except Exception as exc:
+                    logger.warning(f"metric {metric_name} failed for {var}: {exc}")
                     continue
 
         if score_df is not None and target_df is not None and score_col_name and target_col_name:
@@ -215,7 +220,8 @@ class MetricRunner:
                 try:
                     res = metric_cls().calculate(joined, baseline_joined, thresholds, **params)
                     results.append(res)
-                except Exception:
+                except Exception as exc:
+                    logger.warning(f"conjugate metric {metric_name} failed: {exc}")
                     continue
 
         if len(input_numeric) >= 2:

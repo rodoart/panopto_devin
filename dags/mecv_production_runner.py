@@ -4,6 +4,10 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def run_production(**context):
     from datetime import datetime as dt
@@ -23,6 +27,7 @@ def run_production(**context):
     today = dt.now().date()
     today_str = today.strftime("%Y-%m-%d")
     execution_id = context["run_id"]
+    logger.info(f"starting production run for {today_str}")
     dag_id = context["dag"]["dag_id"]
 
     with psql.connection() as conn:
@@ -42,6 +47,7 @@ def run_production(**context):
         model_id = str(model["model_id"])
         frequency = model.get("frequency", "daily")
         information_date = calendar.expected_information_date(frequency, today)
+        logger.info(f"processing model {model_id} with frequency {frequency}, information_date {information_date}")
         if frequency == "business_daily" and not is_business:
             continue
         if frequency in ("weekly", "monthly") and information_date != today_str:

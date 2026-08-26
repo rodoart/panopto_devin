@@ -3,7 +3,11 @@ from datetime import datetime
 from typing import Callable, List, Optional
 
 from pyspark.sql import DataFrame, Row, SparkSession
+
 from mecv.config import Settings
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AtomicParquetWriter:
@@ -35,6 +39,7 @@ class AtomicParquetWriter:
     ) -> dict:
         model_id = str(model_id)
         information_date = str(information_date)
+        logger.info(f"writing {target_table} for {model_id}/{information_date}")
         staging_id = uuid.uuid4().hex
         partition_cols = partition_cols or ["information_date", "model_id"]
         temp_path = f"{self.base_tmp_path}/{target_table}/{information_date}/{model_id}_{execution_id}_{staging_id}"

@@ -4,6 +4,10 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def dispatch_alerts(**context):
     from datetime import datetime as dt
@@ -88,7 +92,7 @@ def handle_missing_data(**context):
             """, (today,))
             for row in cur.fetchall():
                 # enviar alerta de datos faltantes pendientes
-                print(f"missing data for {row[0]}: {row[1]} days")
+                logger.info(f"missing data for {row[0]}: {row[1]} days")
 
 
 with DAG(

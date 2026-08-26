@@ -4,6 +4,9 @@ import pyspark.sql.functions as F
 from pyspark.sql import DataFrame, SparkSession
 
 from mecv.data.sources import DataSourceSpec
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class DataReader:
@@ -19,6 +22,7 @@ class DataReader:
         if isinstance(reading_dates, str):
             reading_dates = [reading_dates]
 
+        logger.info(f"reading {spec.source_type} {spec.table_or_path} for dates {reading_dates}")
         if spec.source_type == "HIVE":
             full_table = f"{spec.schema}.{spec.table_or_path}" if spec.schema else spec.table_or_path
             df = self.spark.table(full_table)

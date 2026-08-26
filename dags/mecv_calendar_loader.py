@@ -5,6 +5,10 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.sensors.python import PythonSensor
 
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def external_calendar_ready(**context):
     from mecv.sessions import SparkSessionBuilder
@@ -12,6 +16,7 @@ def external_calendar_ready(**context):
     ds = context["ds"]
     year = int(ds[:4])
     expected_days = 366 if cal.isleap(year) else 365
+    logger.info(f"checking external calendar for year {year}, expecting >= {expected_days} rows")
     external_table = "banamex_calendar_ext_d"
     spark = SparkSessionBuilder(app_name="mecv_calendar_loader_check").build()
     try:
@@ -19,8 +24,10 @@ def external_calendar_ready(**context):
             SELECT count(*) AS c FROM {external_table}
             WHERE calendar_date >= '{year}-01-01' AND calendar_date <= '{year}-12-31'
         """).collect()[0]["c"]
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"external calendar {external_table} not ready: {exc}")
         return False
+    logger.info(f"external calendar has {count} rows for year {year}")
     return count >= expected_days
 
 
@@ -29,6 +36,7 @@ def convert_external_to_hive(**context):
 
     ds = context["ds"]
     year = int(ds[:4])
+    logger.info(f"converting external calendar to banamex_calendar_d_t_d for year {year}")
     external_table = "banamex_calendar_ext_d"
     spark = SparkSessionBuilder(app_name="mecv_calendar_loader_convert").build()
     spark.sql(f"""
@@ -42,6 +50,7 @@ def convert_external_to_hive(**context):
         FROM {external_table}
         WHERE calendar_date >= '{year}-01-01' AND calendar_date <= '{year}-12-31'
     """)
+    logger.info(f"banamex_calendar_d_t_d overwritten for year {year}")
 
 
 def sync_hive_to_postgres(**context):
@@ -49,6 +58,7 @@ def sync_hive_to_postgres(**context):
 
     ds = context["ds"]
     year = int(ds[:4])
+    logger.info(f"syncing banamex calendar to postgres for year {year}")
     spark = SparkSessionBuilder(app_name="mecv_calendar_loader_sync").build()
     psql = PostgresSession()
     df = spark.sql(f"""
@@ -77,6 +87,7 @@ def sync_hive_to_postgres(**context):
                 rows,
             )
             conn.commit()
+            logger.info(f"synced {len(rows)} calendar rows to postgres for year {year}")
 
 
 def pause_dependent_dags(context):
@@ -116,6 +127,7 @@ def send_red_alert(context):
 
 
 def calendar_load_failure(context):
+    logger.error("calendar load failed after 2 days, pausing dependent DAGs and alerting red list")
     pause_dependent_dags(context)
     send_red_alert(context)
 

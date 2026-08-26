@@ -31,6 +31,7 @@ Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejempl
 - `mecv.config`: carga de variables de entorno.
 - `mecv.sessions`: constructores de `SparkSession` y conexión a PostgreSQL.
 - `mecv.calendar`: `BanamexCalendar` para días hábiles y fechas esperadas de información.
+- `mecv.logging`: configuración de logging (`mecv.logging.get_logger`) con `MECV_LOG_LEVEL`.
 - `mecv.data.sources` y `mecv.data.reader`: lectura de fuentes `hive:` y `parquet:` a partir de `variable_metadata`.
 - `mecv.binning`: bines canónicos, categóricos y cálculo de WoE.
 - `mecv.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`.
@@ -150,5 +151,17 @@ Los DAGs están en `dags/`:
 | `mecv_output_validator` | Diaria | Valida que existan datos del día en `mecv_metric_result` y `mecv_alert_aggregate`; placeholder para refresco de Tableau. |
 | `mecv_orphan_cleanup` | Semanal | Elimina directorios HDFS de `/tmp/mecv_staging` con más de 7 días. |
 | `mecv_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d`, convierte a `banamex_calendar_d_t_d` y sincroniza a `banamex_calendar_sync_d`. Si en 2 días no se actualiza, pausa los DAGs `mecv_*` y alerta a la lista roja. |
+
+## Logging
+
+`mecv/logging.py` configura `logging` del paquete con formato `[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s`. El nivel se controla con `MECV_LOG_LEVEL` (default `INFO`). En Airflow los logs se escriben a `stdout` y se capturan en los logs de tareas.
+
+```python
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
+logger.info("mensaje informativo")
+logger.warning("advertencia")
+```
 
 Para activarlos en Airflow, asegúrate de que `PYTHONPATH` incluya la raíz del repo y que `dags/` esté en `AIRFLOW__CORE__DAGS_FOLDER`.

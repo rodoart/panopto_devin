@@ -3,6 +3,10 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def sync_calendar():
     from mecv.sessions import PostgresSession, SparkSessionBuilder
@@ -98,9 +102,9 @@ def mode_training(**context):
     for model_id in models:
         try:
             tm.run(model_id, today, context["run_id"])
-            print(f"training ok for {model_id}")
+            logger.info(f"training ok for {model_id}")
         except Exception as exc:
-            print(f"training failed for {model_id}: {exc}")
+            logger.warning(f"training failed for {model_id}: {exc}")
 
 
 def validate_training(**context):

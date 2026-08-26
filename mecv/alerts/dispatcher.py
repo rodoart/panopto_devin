@@ -12,8 +12,11 @@ from typing import Any, Dict, List, Optional
 from mecv.alerts.aggregator import AggregateAlert
 from mecv.alerts.email_builder import EmailBuilder
 from mecv.config import Settings
+from mecv.logging import get_logger
 from mecv.metrics.result import MetricResult
 from mecv.sessions import PostgresSession
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -57,6 +60,7 @@ class EmailDispatcher:
         model_id = str(model_id)
         information_date = str(information_date)
         alert_type = "MISSING_DATA" if missing_data else self._overall_status(aggregate_alerts)
+        logger.info(f"dispatching {alert_type} for {model_id} {information_date}")
         to_list, bcc_list = self._build_recipients(model_id, aggregate_alerts, missing_data)
         subject = self._build_subject(model_id, information_date, alert_type)
         html = EmailBuilder(self.config).build_html(

@@ -8,7 +8,10 @@ from mecv.binning import categorical_bins, compute_bin_counts, numeric_bins
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
 from mecv.io.atomic_parquet_writer import AtomicParquetWriter
+from mecv.logging import get_logger
 from mecv.sessions import PostgresSession
+
+logger = get_logger(__name__)
 
 
 class TrainingMode:
@@ -150,6 +153,7 @@ class TrainingMode:
     def run(self, model_id: str, process_date: str, execution_id: str) -> bool:
         model_id = str(model_id)
         process_date = str(process_date)
+        logger.info(f"starting training for model {model_id}, process_date {process_date}")
         variables = self._load_variable_metadata(model_id)
         category_policy = self._load_category_policy(model_id)
         writer = AtomicParquetWriter(self.spark)

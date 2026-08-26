@@ -3,6 +3,10 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def cleanup_orphans(**context):
     from datetime import datetime as dt
@@ -19,7 +23,7 @@ def cleanup_orphans(**context):
     for status in fs.listStatus(staging):
         if status.isDirectory() and status.getModificationTime() < cutoff:
             fs.delete(status.getPath(), True)
-            print(f"deleted {status.getPath().toString()}")
+            logger.info(f"deleted {status.getPath().toString()}")
 
 
 with DAG(

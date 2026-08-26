@@ -3,10 +3,15 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 def validate_output_tables(**context):
     from mecv.sessions import SparkSessionBuilder
     today = datetime.now().strftime("%Y-%m-%d")
+    logger.info(f"validating output tables for {today}")
     spark = SparkSessionBuilder(app_name="mecv_output_validator").build()
     metric_count = spark.sql(f"""
         SELECT count(*) AS c FROM mecv_metric_result_d_t_d
@@ -18,6 +23,7 @@ def validate_output_tables(**context):
     """).collect()[0]["c"]
     if metric_count == 0 or alert_count == 0:
         raise ValueError(f"missing output data for {today}: metrics={metric_count}, alerts={alert_count}")
+    logger.info(f"validation ok for {today}: metrics={metric_count}, alerts={alert_count}")
 
 
 def trigger_tableau_refresh(**context):

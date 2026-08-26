@@ -2,7 +2,10 @@ import calendar as cal
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
+from mecv.logging import get_logger
 from mecv.sessions import PostgresSession
+
+logger = get_logger(__name__)
 
 
 class BanamexCalendar:
