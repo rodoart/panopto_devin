@@ -1,3 +1,5 @@
+"""Módulo training con la(s) clase(s) TrainingMode."""
+
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -15,11 +17,14 @@ logger = get_logger(__name__)
 
 
 class TrainingMode:
-    def __init__(self, spark: SparkSession, reader: DataReader):
+    """Clase que representa TrainingMode."""
+    def __init__(self, spark: SparkSession, reader: DataReader) -> None:
+        """Inicializa una nueva instancia de TrainingMode."""
         self.spark = spark
         self.reader = reader
 
     def _load_variable_metadata(self, model_id: str) -> List[Dict[str, Any]]:
+        """Helper interno que carga variable metadata."""
         df = self.spark.sql(f"""
             SELECT * FROM variable_metadata_d_t_d
             WHERE process_date = (
@@ -29,6 +34,7 @@ class TrainingMode:
         return [r.asDict() for r in df.collect()]
 
     def _load_category_policy(self, model_id: str) -> Dict[str, Dict[str, Any]]:
+        """Helper interno que carga category policy."""
         df = self.spark.sql(f"""
             SELECT * FROM category_policy_d_t_d
             WHERE process_date = (
@@ -38,6 +44,7 @@ class TrainingMode:
         return {r["variable"]: r.asDict() for r in df.collect()}
 
     def _read_dev_data(self, spec: DataSourceSpec, variable: str) -> DataFrame:
+        """Helper interno que lee dev data."""
         if spec.source_type == "HIVE":
             full_table = f"{spec.schema}.{spec.table_or_path}" if spec.schema else spec.table_or_path
             df = self.spark.table(full_table)
@@ -53,6 +60,7 @@ class TrainingMode:
 
     @staticmethod
     def _null_rate(df: DataFrame, variable: str) -> float:
+        """Helper interno que realiza la operación "null_rate"."""
         total = df.count()
         if total == 0:
             return 0.0
@@ -61,6 +69,7 @@ class TrainingMode:
 
     @staticmethod
     def _outlier_rate(df: DataFrame, variable: str) -> float:
+        """Helper interno que realiza la operación "outlier_rate"."""
         total = df.count()
         if total == 0:
             return 0.0
@@ -79,6 +88,7 @@ class TrainingMode:
 
     @staticmethod
     def _entropy(df: DataFrame, variable: str) -> float:
+        """Helper interno que realiza la operación "entropy"."""
         total = df.count()
         if total == 0:
             return 0.0
@@ -95,6 +105,7 @@ class TrainingMode:
         var_type: str,
         sample_size: int,
     ) -> List[Dict[str, Any]]:
+        """Helper interno que realiza la operación "auto_thresholds"."""
         rows = []
         rows.append({
             "variable": variable,
@@ -151,6 +162,7 @@ class TrainingMode:
         return rows
 
     def run(self, model_id: str, process_date: str, execution_id: str) -> bool:
+        """Método que ejecuta."""
         model_id = str(model_id)
         process_date = str(process_date)
         logger.info(f"starting training for model {model_id}, process_date {process_date}")

@@ -1,3 +1,5 @@
+"""Módulo reader con la(s) clase(s) DataReader."""
+
 from typing import List, Optional, Union
 
 import pyspark.sql.functions as F
@@ -10,7 +12,9 @@ logger = get_logger(__name__)
 
 
 class DataReader:
-    def __init__(self, spark: SparkSession):
+    """Clase que representa DataReader."""
+    def __init__(self, spark: SparkSession) -> None:
+        """Inicializa una nueva instancia de DataReader."""
         self.spark = spark
 
     def read(
@@ -19,6 +23,7 @@ class DataReader:
         reading_dates: Union[str, List[str]],
         extra_cols: Optional[List[str]] = None,
     ) -> DataFrame:
+        """Método que lee."""
         if isinstance(reading_dates, str):
             reading_dates = [reading_dates]
 

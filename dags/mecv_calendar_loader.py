@@ -1,3 +1,7 @@
+"""DAG de Airflow mecv_calendar_loader; expone las funciones external_calendar_ready, convert_external_to_hive, sync_hive_to_postgres, pause_dependent_dags, send_red_alert, calendar_load_failure."""
+
+from typing import Any
+
 import calendar as cal
 from datetime import datetime, timedelta
 
@@ -10,7 +14,8 @@ from mecv.logging import get_logger
 logger = get_logger(__name__)
 
 
-def external_calendar_ready(**context):
+def external_calendar_ready(**context: Any) -> bool:
+    """Función que realiza la operación "external_calendar_ready"."""
     from mecv.sessions import SparkSessionBuilder
 
     ds = context["ds"]
@@ -31,7 +36,8 @@ def external_calendar_ready(**context):
     return count >= expected_days
 
 
-def convert_external_to_hive(**context):
+def convert_external_to_hive(**context: Any) -> None:
+    """Función que convierte external to hive."""
     from mecv.sessions import SparkSessionBuilder
 
     ds = context["ds"]
@@ -53,7 +59,8 @@ def convert_external_to_hive(**context):
     logger.info(f"banamex_calendar_d_t_d overwritten for year {year}")
 
 
-def sync_hive_to_postgres(**context):
+def sync_hive_to_postgres(**context: Any) -> None:
+    """Función que realiza la operación "sync_hive_to_postgres"."""
     from mecv.sessions import PostgresSession, SparkSessionBuilder
 
     ds = context["ds"]
@@ -90,7 +97,8 @@ def sync_hive_to_postgres(**context):
             logger.info(f"synced {len(rows)} calendar rows to postgres for year {year}")
 
 
-def pause_dependent_dags(context):
+def pause_dependent_dags(context: Any) -> None:
+    """Función que realiza la operación "pause_dependent_dags"."""
     from airflow import settings
     from airflow.models import DagModel
 
@@ -105,7 +113,8 @@ def pause_dependent_dags(context):
         session.close()
 
 
-def send_red_alert(context):
+def send_red_alert(context: Any) -> None:
+    """Función que envía red alert."""
     from mecv.alerts.dispatcher import EmailDispatcher
 
     ds = context.get("ds")
@@ -126,7 +135,8 @@ def send_red_alert(context):
         pass
 
 
-def calendar_load_failure(context):
+def calendar_load_failure(context: Any) -> None:
+    """Función que realiza la operación "calendar_load_failure"."""
     logger.error("calendar load failed after 2 days, pausing dependent DAGs and alerting red list")
     pause_dependent_dags(context)
     send_red_alert(context)

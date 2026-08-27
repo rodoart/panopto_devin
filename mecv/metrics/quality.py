@@ -1,12 +1,18 @@
+"""Módulo quality con la(s) clase(s) NullRateMetric, CardinalityRatioMetric, OutlierRateMetric, DominantCategoryRateMetric, CategoryCompositionDriftMetric."""
+
+from typing import Any
+
 import pyspark.sql.functions as F
 
 from mecv.metrics.base import Metric, MetricRegistry
 
 
 class NullRateMetric(Metric):
+    """Clase que representa NullRateMetric."""
     name = "null_rate"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         variable = params["variable"]
         total = df.count()
         nulls = df.select(
@@ -24,9 +30,11 @@ class NullRateMetric(Metric):
 
 
 class CardinalityRatioMetric(Metric):
+    """Clase que representa CardinalityRatioMetric."""
     name = "cardinality_ratio"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         variable = params["variable"]
         total = df.count()
         distinct = df.select(F.countDistinct(F.col(variable)).alias("d")).collect()[0]["d"]
@@ -35,9 +43,11 @@ class CardinalityRatioMetric(Metric):
 
 
 class OutlierRateMetric(Metric):
+    """Clase que representa OutlierRateMetric."""
     name = "outlier_rate"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         variable = params["variable"]
         total = df.count()
         row = df.select(
@@ -58,9 +68,11 @@ class OutlierRateMetric(Metric):
 
 
 class DominantCategoryRateMetric(Metric):
+    """Clase que representa DominantCategoryRateMetric."""
     name = "dominant_category_rate"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         variable = params["variable"]
         total = df.count()
         max_freq = df.groupBy(F.col(variable)).count().agg(F.max("count").alias("m")).collect()[0]["m"]
@@ -70,9 +82,11 @@ class DominantCategoryRateMetric(Metric):
 
 
 class CategoryCompositionDriftMetric(Metric):
+    """Clase que representa CategoryCompositionDriftMetric."""
     name = "category_composition_drift"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         variable = params["variable"]
         top_n = params.get("top_n", 10)
         current_top = df.groupBy(F.col(variable)).count().orderBy(F.desc("count")).limit(top_n).collect()

@@ -1,3 +1,5 @@
+"""Módulo sessions con la(s) clase(s) SparkSessionBuilder, PostgresSession."""
+
 from typing import Any, Dict
 
 import psycopg2
@@ -10,11 +12,14 @@ logger = get_logger(__name__)
 
 
 class SparkSessionBuilder:
-    def __init__(self, app_name: str = "mecv", extra_conf: Dict[str, Any] = None):
+    """Clase que representa SparkSessionBuilder."""
+    def __init__(self, app_name: str = "mecv", extra_conf: Dict[str, Any] = None) -> None:
+        """Inicializa una nueva instancia de SparkSessionBuilder."""
         self.app_name = app_name
         self.extra_conf = extra_conf or {}
 
     def build(self) -> SparkSession:
+        """Método que construye."""
         settings = Settings.from_env()
         builder = SparkSession.builder.appName(self.app_name)
         if settings.hive_metastore_uris:
@@ -29,10 +34,13 @@ class SparkSessionBuilder:
 
 
 class PostgresSession:
-    def __init__(self):
+    """Clase que representa PostgresSession."""
+    def __init__(self) -> None:
+        """Inicializa una nueva instancia de PostgresSession."""
         self.settings = Settings.from_env()
 
-    def connection(self):
+    def connection(self) -> Any:
+        """Método que realiza la operación "connection"."""
         return psycopg2.connect(
             host=self.settings.postgres_host,
             port=self.settings.postgres_port,
@@ -41,7 +49,8 @@ class PostgresSession:
             password=self.settings.postgres_password,
         )
 
-    def execute(self, query: str, params: tuple = None):
+    def execute(self, query: str, params: tuple = None) -> None:
+        """Método que realiza la operación "execute"."""
         with self.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(query, params)

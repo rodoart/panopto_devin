@@ -1,3 +1,7 @@
+"""DAG de Airflow mecv_production_runner; expone las funciones run_production."""
+
+from typing import Any
+
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -9,7 +13,8 @@ from mecv.logging import get_logger
 logger = get_logger(__name__)
 
 
-def run_production(**context):
+def run_production(**context: Any) -> None:
+    """Función que ejecuta production."""
     from datetime import datetime as dt
     from mecv.alerts.aggregator import AlertAggregator
     from mecv.calendar import BanamexCalendar

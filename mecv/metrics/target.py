@@ -1,3 +1,7 @@
+"""Módulo target con la(s) clase(s) EventRateMetric, PSITargetMetric."""
+
+from typing import Any
+
 import pyspark.sql.functions as F
 
 from mecv.metrics.base import Metric, MetricRegistry
@@ -5,9 +9,11 @@ from mecv.metrics.stability import _psi_from_bins
 
 
 class EventRateMetric(Metric):
+    """Clase que representa EventRateMetric."""
     name = "event_rate"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         target_col = params.get("target_col", "target")
         current = df.select(F.mean(F.col(target_col)).alias("m")).collect()[0]["m"]
         current = current or 0.0
@@ -25,9 +31,11 @@ class EventRateMetric(Metric):
 
 
 class PSITargetMetric(Metric):
+    """Clase que representa PSITargetMetric."""
     name = "psi_target"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         target_col = params.get("target_col", "target")
         bins = params.get("bins", [])
         if not bins:

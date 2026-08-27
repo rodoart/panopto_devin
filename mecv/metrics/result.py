@@ -1,3 +1,5 @@
+"""Módulo result con la(s) clase(s) MetricResult."""
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -5,6 +7,7 @@ from typing import Optional
 
 @dataclass
 class MetricResult:
+    """Clase de datos que representa MetricResult."""
     model_id: str
     information_date: str
     variable: str

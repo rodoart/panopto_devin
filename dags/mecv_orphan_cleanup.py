@@ -1,3 +1,7 @@
+"""DAG de Airflow mecv_orphan_cleanup; expone las funciones cleanup_orphans."""
+
+from typing import Any
+
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -8,7 +12,8 @@ from mecv.logging import get_logger
 logger = get_logger(__name__)
 
 
-def cleanup_orphans(**context):
+def cleanup_orphans(**context: Any) -> None:
+    """Función que limpia orphans."""
     from datetime import datetime as dt
     from mecv.sessions import SparkSessionBuilder
 

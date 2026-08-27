@@ -1,3 +1,5 @@
+"""Módulo de utilidades registry."""
+
 from mecv.metrics.base import MetricRegistry
 
 import mecv.metrics.quality

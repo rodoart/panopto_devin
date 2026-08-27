@@ -1,3 +1,7 @@
+"""DAG de Airflow mecv_config_watcher; expone las funciones sync_calendar, detect_config_changes, mode_training, validate_training."""
+
+from typing import Any
+
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -8,7 +12,8 @@ from mecv.logging import get_logger
 logger = get_logger(__name__)
 
 
-def sync_calendar():
+def sync_calendar() -> None:
+    """Función que realiza la operación "sync_calendar"."""
     from mecv.sessions import PostgresSession, SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_sync").build()
     today = datetime.now().date()
@@ -41,7 +46,8 @@ def sync_calendar():
             conn.commit()
 
 
-def detect_config_changes(**context):
+def detect_config_changes(**context: Any) -> None:
+    """Función que realiza la operación "detect_config_changes"."""
     from mecv.sessions import SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_detect").build()
     today = datetime.now().strftime("%Y-%m-%d")
@@ -84,7 +90,8 @@ def detect_config_changes(**context):
         """)
 
 
-def mode_training(**context):
+def mode_training(**context: Any) -> None:
+    """Función que realiza la operación "mode_training"."""
     from mecv.data.reader import DataReader
     from mecv.sessions import SparkSessionBuilder
     from mecv.training import TrainingMode
@@ -107,7 +114,8 @@ def mode_training(**context):
             logger.warning(f"training failed for {model_id}: {exc}")
 
 
-def validate_training(**context):
+def validate_training(**context: Any) -> None:
+    """Función que valida training."""
     from airflow.exceptions import AirflowFailException
     from mecv.sessions import SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_validate").build()

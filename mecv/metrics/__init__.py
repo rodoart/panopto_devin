@@ -1,3 +1,5 @@
+"""Inicialización del subpaquete mecv.metrics."""
+
 from .base import Metric, MetricRegistry
 from .result import MetricResult
 from . import common

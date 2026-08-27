@@ -1,6 +1,8 @@
+"""Módulo runner con la(s) clase(s) MissingDataError, MetricRunner."""
+
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
@@ -17,6 +19,7 @@ logger = get_logger(__name__)
 
 
 class MissingDataError(Exception):
+    """Clase que representa MissingDataError."""
     pass
 
 
@@ -73,13 +76,9 @@ NEEDS_BASELINE_DATA = {
 
 
 class MetricRunner:
-    def __init__(
-        self,
-        spark: SparkSession,
-        data_reader: DataReader,
-        join_keys: Optional[List[str]] = None,
-        calendar: Optional[BanamexCalendar] = None,
-    ):
+    """Clase que representa MetricRunner."""
+    def __init__(self, spark: SparkSession, data_reader: DataReader, join_keys: Optional[List[str]] = None, calendar: Optional[BanamexCalendar] = None) -> None:
+        """Inicializa una nueva instancia de MetricRunner."""
         self.spark = spark
         self.data_reader = data_reader
         self.join_keys = join_keys or ["customer_id"]
@@ -93,6 +92,7 @@ class MetricRunner:
         execution_id: str,
         baseline_date: Optional[str] = None,
     ) -> List[MetricResult]:
+        """Método que ejecuta."""
         model_id = str(model_id)
         information_date = str(information_date)
         logger.info(f"running metrics for model {model_id}, information_date {information_date}")
@@ -254,7 +254,8 @@ class MetricRunner:
 
         return results
 
-    def _join_inputs(self, dfs):
+    def _join_inputs(self, dfs: Any) -> Any:
+        """Helper interno que une inputs."""
         joined = dfs[0]
         join_cols = [c for c in self.join_keys if c in joined.columns]
         for df in dfs[1:]:
@@ -263,15 +264,18 @@ class MetricRunner:
         return joined
 
     def _load_model_summary(self, model_id: str) -> Dict:
+        """Helper interno que carga model summary."""
         df = self._latest_partition("model_summary_csi_psi_d_t_d", model_id)
         rows = df.collect()
         return rows[0].asDict() if rows else {}
 
     def _load_variable_metadata(self, model_id: str) -> List[Dict]:
+        """Helper interno que carga variable metadata."""
         df = self._latest_partition("variable_metadata_d_t_d", model_id)
         return [r.asDict() for r in df.collect()]
 
     def _load_thresholds_table(self, model_id: str) -> Dict:
+        """Helper interno que carga thresholds table."""
         df = self._latest_partition("tresholds_table_d_t_d", model_id)
         out = {}
         for r in df.collect():
@@ -279,6 +283,7 @@ class MetricRunner:
         return out
 
     def _load_metric_threshold_auto(self, model_id: str) -> Dict:
+        """Helper interno que carga metric threshold auto."""
         df = self._latest_partition("metric_threshold_auto_d_t_d", model_id)
         out = {}
         for r in df.collect():
@@ -286,6 +291,7 @@ class MetricRunner:
         return out
 
     def _load_category_policy(self, model_id: str) -> Dict:
+        """Helper interno que carga category policy."""
         df = self._latest_partition("category_policy_d_t_d", model_id)
         out = {}
         for r in df.collect():
@@ -293,6 +299,7 @@ class MetricRunner:
         return out
 
     def _load_csi_bins(self, model_id: str) -> Dict:
+        """Helper interno que carga csi bins."""
         df = self._latest_partition("csi_psi_table_d_t_d", model_id)
         out = defaultdict(list)
         for r in df.collect():
@@ -300,7 +307,8 @@ class MetricRunner:
             out[(d["variable"], d["type"])].append(d)
         return dict(out)
 
-    def _latest_partition(self, table: str, model_id: str):
+    def _latest_partition(self, table: str, model_id: str) -> Any:
+        """Helper interno que realiza la operación "latest_partition"."""
         return self.spark.sql(f"""
             SELECT * FROM {table}
             WHERE process_date = (
@@ -308,13 +316,8 @@ class MetricRunner:
             ) AND model_id = '{model_id}'
         """)
 
-    def _read_data(
-        self,
-        spec: DataSourceSpec,
-        variable: str,
-        current_dates: List[str],
-        baseline_dates: Optional[List[str]] = None,
-    ):
+    def _read_data(self, spec: DataSourceSpec, variable: str, current_dates: List[str], baseline_dates: Optional[List[str]] = None) -> Tuple[Any, ...]:
+        """Helper interno que lee data."""
         current = self.data_reader.read(spec, current_dates, extra_cols=self.join_keys)
         current = current.withColumnRenamed(spec.column, variable)
         baseline = None
@@ -324,6 +327,7 @@ class MetricRunner:
         return current, baseline
 
     def _period_dates(self, reference_date: str, reading_mode: str, frequency: str) -> List[str]:
+        """Helper interno que realiza la operación "period_dates"."""
         period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
         if reading_mode == "each" or period == "day":
             return [reference_date]
@@ -334,6 +338,7 @@ class MetricRunner:
         return [reference_date]
 
     def _previous_period_reference(self, reference_date: str, frequency: str) -> str:
+        """Helper interno que realiza la operación "previous_period_reference"."""
         d = datetime.fromisoformat(reference_date).date()
         if frequency == "monthly":
             if d.month == 1:
@@ -346,13 +351,8 @@ class MetricRunner:
             d = d - timedelta(days=1)
         return d.isoformat()
 
-    def _resolve_dates(
-        self,
-        information_date: str,
-        baseline_date: Optional[str],
-        reading_mode: str,
-        frequency: str,
-    ):
+    def _resolve_dates(self, information_date: str, baseline_date: Optional[str], reading_mode: str, frequency: str) -> Tuple[Any, ...]:
+        """Helper interno que resuelve dates."""
         current_dates = self._period_dates(information_date, reading_mode, frequency)
         if reading_mode == "each":
             if baseline_date:
@@ -366,6 +366,7 @@ class MetricRunner:
         return current_dates, baseline_dates
 
     def _metrics_for_variable(self, var_type: str, data_type: str) -> List[str]:
+        """Helper interno que realiza la operación "metrics_for_variable"."""
         metrics = ["null_rate"]
         if var_type in ("raw", "input", "transformed"):
             metrics.append("cardinality_ratio")
@@ -404,6 +405,7 @@ class MetricRunner:
         metric_threshold_auto: Dict,
         has_baseline: bool,
     ) -> Dict:
+        """Helper interno que realiza la operación "thresholds_for"."""
         thresholds = dict(DEFAULT_THRESHOLDS.get(metric_name, {}))
         auto = metric_threshold_auto.get((variable, metric_name), {})
         for key in ("threshold_ambar", "threshold_red"):
@@ -425,7 +427,8 @@ class MetricRunner:
             thresholds = {k: v for k, v in thresholds.items() if k not in ("threshold_ambar", "threshold_red")}
         return thresholds
 
-    def _join_conjugate(self, score_df, target_df, score_col, target_col):
+    def _join_conjugate(self, score_df: Any, target_df: Any, score_col: Any, target_col: Any) -> Any:
+        """Helper interno que une conjugate."""
         join_cols = [c for c in self.join_keys if c in score_df.columns and c in target_df.columns]
         s = score_df.withColumnRenamed(score_col, "score")
         t = target_df.withColumnRenamed(target_col, "target")

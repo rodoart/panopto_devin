@@ -1,3 +1,7 @@
+"""DAG de Airflow mecv_output_validator; expone las funciones validate_output_tables, trigger_tableau_refresh, log_refresh."""
+
+from typing import Any
+
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -8,7 +12,8 @@ from mecv.logging import get_logger
 logger = get_logger(__name__)
 
 
-def validate_output_tables(**context):
+def validate_output_tables(**context: Any) -> None:
+    """Función que valida output tables."""
     from mecv.sessions import SparkSessionBuilder
     today = datetime.now().strftime("%Y-%m-%d")
     logger.info(f"validating output tables for {today}")
@@ -26,12 +31,13 @@ def validate_output_tables(**context):
     logger.info(f"validation ok for {today}: metrics={metric_count}, alerts={alert_count}")
 
 
-def trigger_tableau_refresh(**context):
-    # Tableau lee tablas Hive de forma pasiva; aqui se puede llamar a la API si se activa mas adelante
+def trigger_tableau_refresh(**context: Any) -> None:
+    """Función que realiza la operación "trigger_tableau_refresh"."""
     pass
 
 
-def log_refresh(**context):
+def log_refresh(**context: Any) -> None:
+    """Función que registra refresh."""
     from mecv.sessions import SparkSessionBuilder
     from datetime import datetime as dt
     today = dt.now().strftime("%Y-%m-%d")

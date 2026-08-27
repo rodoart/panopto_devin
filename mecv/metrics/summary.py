@@ -1,3 +1,5 @@
+"""Módulo summary con la(s) clase(s) VariableSummaryBuilder."""
+
 from typing import Any, Dict, List
 
 import pyspark.sql.functions as F
@@ -5,6 +7,7 @@ from pyspark.sql import DataFrame
 
 
 class VariableSummaryBuilder:
+    """Clase que representa VariableSummaryBuilder."""
     @staticmethod
     def build(
         df: DataFrame,
@@ -15,6 +18,7 @@ class VariableSummaryBuilder:
         information_date: str,
         execution_id: str,
     ) -> List[Dict[str, Any]]:
+        """Método estático que construye."""
         rows = []
         base = {
             "execution_id": execution_id,

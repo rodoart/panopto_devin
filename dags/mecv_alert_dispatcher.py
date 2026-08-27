@@ -1,3 +1,7 @@
+"""DAG de Airflow mecv_alert_dispatcher; expone las funciones dispatch_alerts, handle_missing_data."""
+
+from typing import Any
+
 import dataclasses
 from datetime import datetime, timedelta
 
@@ -9,7 +13,8 @@ from mecv.logging import get_logger
 logger = get_logger(__name__)
 
 
-def dispatch_alerts(**context):
+def dispatch_alerts(**context: Any) -> None:
+    """Función que envía alerts."""
     from datetime import datetime as dt
     from mecv.alerts.aggregator import AlertAggregator
     from mecv.alerts.dispatcher import EmailDispatcher
@@ -77,7 +82,8 @@ def dispatch_alerts(**context):
             continue
 
 
-def handle_missing_data(**context):
+def handle_missing_data(**context: Any) -> None:
+    """Función que gestiona missing data."""
     from mecv.sessions import PostgresSession
     today = datetime.now().date()
     psql = PostgresSession()

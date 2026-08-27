@@ -1,3 +1,5 @@
+"""Módulo atomic_parquet_writer con la(s) clase(s) AtomicParquetWriter."""
+
 import uuid
 from datetime import datetime
 from typing import Callable, List, Optional
@@ -11,12 +13,9 @@ logger = get_logger(__name__)
 
 
 class AtomicParquetWriter:
-    def __init__(
-        self,
-        spark: SparkSession,
-        base_tmp_path: Optional[str] = None,
-        control_table: str = "mecv_staging_control_d_t_d",
-    ):
+    """Clase que representa AtomicParquetWriter."""
+    def __init__(self, spark: SparkSession, base_tmp_path: Optional[str] = None, control_table: str = "mecv_staging_control_d_t_d") -> None:
+        """Inicializa una nueva instancia de AtomicParquetWriter."""
         self.spark = spark
         settings = Settings.from_env()
         self.base_tmp_path = (base_tmp_path or settings.hdfs_staging_base).rstrip("/")
@@ -37,6 +36,7 @@ class AtomicParquetWriter:
         partition_cols: Optional[List[str]] = None,
         extra_validation: Optional[Callable[[DataFrame], None]] = None,
     ) -> dict:
+        """Método que escribe atomic."""
         model_id = str(model_id)
         information_date = str(information_date)
         logger.info(f"writing {target_table} for {model_id}/{information_date}")
@@ -81,13 +81,15 @@ class AtomicParquetWriter:
             "status": "PROMOTED",
         }
 
-    def _write_temp(self, df: DataFrame, temp_path: str, partition_cols: List[str]):
+    def _write_temp(self, df: DataFrame, temp_path: str, partition_cols: List[str]) -> None:
+        """Helper interno que escribe temp."""
         writer = df.write.mode("overwrite").option("compression", "snappy")
         if partition_cols:
             writer = writer.partitionBy(*partition_cols)
         writer.parquet(temp_path)
 
     def _partition_suffix(self, partition_cols: List[str], information_date: str, model_id: str) -> str:
+        """Helper interno que realiza la operación "partition_suffix"."""
         parts = []
         for col in partition_cols:
             if col == "information_date":
@@ -100,7 +102,8 @@ class AtomicParquetWriter:
                 raise ValueError(f"unsupported partition column: {col}")
         return "/".join(parts)
 
-    def _promote(self, source_path: str, final_path: str):
+    def _promote(self, source_path: str, final_path: str) -> None:
+        """Helper interno que realiza la operación "promote"."""
         final_jvm = self.Path(final_path)
         if self.fs.exists(final_jvm):
             self.fs.delete(final_jvm, True)
@@ -111,21 +114,12 @@ class AtomicParquetWriter:
         if not success:
             raise RuntimeError(f"rename failed: {source_path} -> {final_path}")
 
-    def _repair_table(self, target_table: str):
+    def _repair_table(self, target_table: str) -> None:
+        """Helper interno que realiza la operación "repair_table"."""
         self.spark.sql(f"MSCK REPAIR TABLE {target_table}")
 
-    def _log_staging(
-        self,
-        staging_id: str,
-        execution_id: str,
-        model_id: str,
-        target_table: str,
-        information_date: str,
-        temp_path: str,
-        final_path: str,
-        row_count: int,
-        status: str,
-    ):
+    def _log_staging(self, staging_id: str, execution_id: str, model_id: str, target_table: str, information_date: str, temp_path: str, final_path: str, row_count: int, status: str) -> None:
+        """Helper interno que registra staging."""
         now = datetime.now()
         process_date = now.strftime("%Y-%m-%d")
         row = {
@@ -147,7 +141,8 @@ class AtomicParquetWriter:
         control_df = self.spark.createDataFrame([Row(**row)])
         control_df.write.mode("append").insertInto(self.control_table)
 
-    def _update_staging_status(self, staging_id: str, status: str, row_count_final: int):
+    def _update_staging_status(self, staging_id: str, status: str, row_count_final: int) -> None:
+        """Helper interno que actualiza staging status."""
         self.spark.sql(
             f"""
             INSERT OVERWRITE TABLE {self.control_table}

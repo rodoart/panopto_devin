@@ -1,3 +1,5 @@
+"""Módulo dispatcher con la(s) clase(s) EmailLog, EmailDispatcher."""
+
 import json
 import os
 import smtplib
@@ -7,7 +9,7 @@ from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from mecv.alerts.aggregator import AggregateAlert
 from mecv.alerts.email_builder import EmailBuilder
@@ -21,6 +23,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class EmailLog:
+    """Clase de datos que representa EmailLog."""
     email_id: str
     execution_id: Optional[str]
     alert_type: str
@@ -35,13 +38,16 @@ class EmailLog:
 
 
 class EmailDispatcher:
-    def __init__(self, config_path: Optional[str] = None):
+    """Clase que representa EmailDispatcher."""
+    def __init__(self, config_path: Optional[str] = None) -> None:
+        """Inicializa una nueva instancia de EmailDispatcher."""
         self.config = self._load_config(config_path)
         self.settings = Settings.from_env()
         self.psql = PostgresSession()
 
     @staticmethod
     def _load_config(config_path: Optional[str]) -> Dict[str, Any]:
+        """Helper interno que carga config."""
         path = config_path or os.environ.get("MECV_EMAIL_CONFIG_PATH", "config/email_config.json")
         with open(path, "r") as f:
             return json.load(f)
@@ -57,6 +63,7 @@ class EmailDispatcher:
         missing_days: int = 0,
         execution_id: Optional[str] = None,
     ) -> EmailLog:
+        """Método que envía."""
         model_id = str(model_id)
         information_date = str(information_date)
         alert_type = "MISSING_DATA" if missing_data else self._overall_status(aggregate_alerts)
@@ -86,12 +93,8 @@ class EmailDispatcher:
             smtp_response=smtp_response,
         )
 
-    def _build_recipients(
-        self,
-        model_id: str,
-        aggregate_alerts: List[AggregateAlert],
-        missing_data: bool,
-    ):
+    def _build_recipients(self, model_id: str, aggregate_alerts: List[AggregateAlert], missing_data: bool) -> Tuple[Any, ...]:
+        """Helper interno que construye recipients."""
         has_red = any(a.aggregate_status == "RED" for a in aggregate_alerts)
         has_ambar = any(a.aggregate_status == "AMBAR" for a in aggregate_alerts)
         to_set = set()
@@ -130,6 +133,7 @@ class EmailDispatcher:
         return to_list, bcc_list
 
     def _overall_status(self, aggregate_alerts: List[AggregateAlert]) -> str:
+        """Helper interno que realiza la operación "overall_status"."""
         statuses = {a.aggregate_status for a in aggregate_alerts}
         if "RED" in statuses:
             return "RED"
@@ -138,10 +142,12 @@ class EmailDispatcher:
         return "GREEN"
 
     def _build_subject(self, model_id: str, information_date: str, alert_type: str) -> str:
+        """Helper interno que construye subject."""
         prefix = self.config.get("subject_prefix", "[MECV]")
         return f"{prefix} {alert_type} - {model_id} - {information_date}"
 
-    def _send_email(self, to_list: List[str], bcc_list: List[str], subject: str, html: str):
+    def _send_email(self, to_list: List[str], bcc_list: List[str], subject: str, html: str) -> Tuple[Any, ...]:
+        """Helper interno que envía email."""
         sender_email = self.config.get("sender_email", "")
         sender_name = self.config.get("sender_name", "")
         if not sender_email:

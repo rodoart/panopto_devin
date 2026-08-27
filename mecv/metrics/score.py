@@ -1,3 +1,7 @@
+"""Módulo score con las clases ScoreRangeMetric, EntropyMetric, ApprovalRateMetric, ScoreTailShiftMetric, ConcentrationGiniMetric, PSIApprovedMetric, PSIRejectedMetric y funciones _entropy."""
+
+from typing import Any, Union
+
 import pyspark.sql.functions as F
 from pyspark.sql import Window
 
@@ -5,7 +9,8 @@ from mecv.metrics.base import Metric, MetricRegistry
 from mecv.metrics.stability import _psi_from_bins
 
 
-def _entropy(df, score_col):
+def _entropy(df: Any, score_col: Any) -> Union[float, bool]:
+    """Helper interno que realiza la operación "entropy"."""
     total = df.count()
     if total == 0:
         return 0.0
@@ -16,9 +21,11 @@ def _entropy(df, score_col):
 
 
 class ScoreRangeMetric(Metric):
+    """Clase que representa ScoreRangeMetric."""
     name = "range_violation"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         total = df.count()
         violations = df.filter(
@@ -29,9 +36,11 @@ class ScoreRangeMetric(Metric):
 
 
 class EntropyMetric(Metric):
+    """Clase que representa EntropyMetric."""
     name = "entropy"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         current = _entropy(df, score_col)
         baseline_value = None
@@ -47,9 +56,11 @@ class EntropyMetric(Metric):
 
 
 class ApprovalRateMetric(Metric):
+    """Clase que representa ApprovalRateMetric."""
     name = "approval_rate"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         cutoff = params.get("cut_off_probability", 0.5)
         total = df.count()
@@ -68,9 +79,11 @@ class ApprovalRateMetric(Metric):
 
 
 class ScoreTailShiftMetric(Metric):
+    """Clase que representa ScoreTailShiftMetric."""
     name = "tail_shift"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         if baseline is None:
             raise ValueError("tail_shift requires a baseline dataframe")
@@ -83,9 +96,11 @@ class ScoreTailShiftMetric(Metric):
 
 
 class ConcentrationGiniMetric(Metric):
+    """Clase que representa ConcentrationGiniMetric."""
     name = "concentration_gini"
 
-    def _gini(self, df, score_col):
+    def _gini(self, df: Any, score_col: Any) -> Any:
+        """Helper interno que realiza la operación "gini"."""
         n = df.count()
         if n < 2:
             return 0.0
@@ -98,7 +113,8 @@ class ConcentrationGiniMetric(Metric):
             return 0.0
         return (2.0 * r["num"] / (n * r["den"])) - ((n + 1.0) / n)
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         current = self._gini(df, score_col)
         baseline_value = self._gini(baseline, score_col) if baseline is not None else None
@@ -110,9 +126,11 @@ class ConcentrationGiniMetric(Metric):
 
 
 class PSIApprovedMetric(Metric):
+    """Clase que representa PSIApprovedMetric."""
     name = "psi_approved"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         if baseline is None:
             raise ValueError("psi_approved requires a baseline dataframe")
         score_col = params.get("score_col", "score")
@@ -127,9 +145,11 @@ class PSIApprovedMetric(Metric):
 
 
 class PSIRejectedMetric(Metric):
+    """Clase que representa PSIRejectedMetric."""
     name = "psi_rejected"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         if baseline is None:
             raise ValueError("psi_rejected requires a baseline dataframe")
         score_col = params.get("score_col", "score")

@@ -1,3 +1,5 @@
+"""Módulo logging con las funciones setup_logging, get_logger."""
+
 import logging
 import logging.config
 import os
@@ -8,7 +10,8 @@ DEFAULT_DATEFMT = "%Y-%m-%d %H:%M:%S"
 _initialized = False
 
 
-def setup_logging(level: str = None):
+def setup_logging(level: str = None) -> None:
+    """Función que configura logging."""
     global _initialized
     if _initialized:
         return
@@ -47,5 +50,6 @@ def setup_logging(level: str = None):
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Función que obtiene logger."""
     setup_logging()
     return logging.getLogger(name)

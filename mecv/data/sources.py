@@ -1,3 +1,5 @@
+"""Módulo sources con la(s) clase(s) DataSourceSpec."""
+
 import json
 from dataclasses import dataclass
 from typing import List, Optional
@@ -5,6 +7,7 @@ from typing import List, Optional
 
 @dataclass
 class DataSourceSpec:
+    """Clase de datos que representa DataSourceSpec."""
     source_type: str
     schema: Optional[str]
     table_or_path: str
@@ -13,7 +16,8 @@ class DataSourceSpec:
     partition_columns: List[str]
 
     @classmethod
-    def from_metadata(cls, source_table: str, source_column: str, information_date_column: str, partition_columns: str = "[]"):
+    def from_metadata(cls, source_table: str, source_column: str, information_date_column: str, partition_columns: str = "[]") -> "DataSourceSpec":
+        """Método de clase que realiza la operación "from_metadata"."""
         prefix, _, rest = source_table.partition(":")
         source_type = prefix.upper() if prefix else "HIVE"
         if source_type == "HIVE":

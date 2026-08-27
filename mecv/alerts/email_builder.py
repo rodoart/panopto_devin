@@ -1,3 +1,5 @@
+"""Módulo email_builder con la(s) clase(s) EmailBuilder."""
+
 import json
 import os
 from html import escape
@@ -39,13 +41,16 @@ $body
 
 
 class EmailBuilder:
-    def __init__(self, config: Dict[str, Any] = None):
+    """Clase que representa EmailBuilder."""
+    def __init__(self, config: Dict[str, Any] = None) -> None:
+        """Inicializa una nueva instancia de EmailBuilder."""
         if config is None:
             config = self._default_config()
         self.config = config
 
     @staticmethod
     def _default_config() -> Dict[str, Any]:
+        """Helper interno que realiza la operación "default_config"."""
         path = os.environ.get("MECV_EMAIL_CONFIG_PATH", "config/email_config.json")
         with open(path, "r") as f:
             return json.load(f)
@@ -60,6 +65,7 @@ class EmailBuilder:
         missing_data: bool = False,
         missing_days: int = 0,
     ) -> str:
+        """Método que construye html."""
         title = f"{self.config.get('subject_prefix', '[MECV]')} Alerta {model_id} - {information_date}"
         body = self._build_body(
             model_id,
@@ -82,6 +88,7 @@ class EmailBuilder:
         missing_data: bool,
         missing_days: int,
     ) -> str:
+        """Helper interno que construye body."""
         parts = [
             f"<h1>Alerta MECV: {escape(model_name)} ({escape(model_id)})</h1>",
             f"<p><strong>Fecha de información:</strong> {escape(information_date)}</p>",
@@ -105,6 +112,7 @@ class EmailBuilder:
         return "\n".join(parts)
 
     def _summary_table(self, aggregate_alerts: List[AggregateAlert]) -> str:
+        """Helper interno que realiza la operación "summary_table"."""
         rows = []
         rows.append(
             "<tr><th>Tipo de variable</th><th>Estado</th><th>Total métricas</th>"
@@ -122,6 +130,7 @@ class EmailBuilder:
         )
 
     def _red_metrics_section(self, metric_results: List[MetricResult]) -> str:
+        """Helper interno que realiza la operación "red_metrics_section"."""
         red = [m for m in metric_results if m.status == "RED"]
         if not red:
             return ""
@@ -136,6 +145,7 @@ class EmailBuilder:
         )
 
     def _conjugate_section(self, metric_results: List[MetricResult]) -> str:
+        """Helper interno que realiza la operación "conjugate_section"."""
         names = {"auc", "gini", "brier_score", "lift_top_decile"}
         metrics = [m for m in metric_results if m.metric_name in names]
         if not metrics:
@@ -151,6 +161,7 @@ class EmailBuilder:
         )
 
     def _target_section(self, metric_results: List[MetricResult]) -> str:
+        """Helper interno que realiza la operación "target_section"."""
         metrics = [m for m in metric_results if m.var_type == "target"]
         if not metrics:
             return ""
@@ -164,6 +175,7 @@ class EmailBuilder:
 
     @staticmethod
     def _status_class(status: str) -> str:
+        """Helper interno que realiza la operación "status_class"."""
         return {
             "GREEN": "status-green",
             "AMBAR": "status-ambar",

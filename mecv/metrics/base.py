@@ -1,31 +1,24 @@
+"""Módulo base con la(s) clase(s) Metric, MetricRegistry."""
+
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from pyspark.sql import DataFrame
 from mecv.metrics.result import MetricResult
 
 
 class Metric(ABC):
+    """Clase que representa Metric."""
     name = "metric"
 
     @abstractmethod
-    def calculate(
-        self,
-        df: DataFrame,
-        baseline: Optional[DataFrame],
-        thresholds: Dict[str, float],
-        **params,
-    ) -> MetricResult:
+    def calculate(self, df: DataFrame, baseline: Optional[DataFrame], thresholds: Dict[str, float], **params: Any) -> MetricResult:
+        """Método abstracto que calcula."""
         raise NotImplementedError
 
-    def _make_result(
-        self,
-        metric_value: float,
-        baseline_value: Optional[float],
-        thresholds: Dict[str, float],
-        **params,
-    ) -> MetricResult:
+    def _make_result(self, metric_value: float, baseline_value: Optional[float], thresholds: Dict[str, float], **params: Any) -> MetricResult:
+        """Helper interno que construye result."""
         ambar = thresholds.get("threshold_ambar")
         red = thresholds.get("threshold_red")
         value = 0.0 if metric_value is None else float(metric_value)
@@ -55,18 +48,22 @@ class Metric(ABC):
 
 
 class MetricRegistry:
+    """Clase que representa MetricRegistry."""
     _registry: Dict[str, Type[Metric]] = {}
 
     @classmethod
-    def register(cls, metric_class: Type[Metric]):
+    def register(cls, metric_class: Type[Metric]) -> None:
+        """Método de clase que registra."""
         cls._registry[metric_class.name] = metric_class
 
     @classmethod
     def get(cls, name: str) -> Type[Metric]:
+        """Método de clase que obtiene."""
         if name not in cls._registry:
             raise KeyError(f"metric not registered: {name}")
         return cls._registry[name]
 
     @classmethod
-    def list(cls):
+    def list(cls) -> List[Any]:
+        """Método de clase que lista."""
         return sorted(cls._registry.keys())

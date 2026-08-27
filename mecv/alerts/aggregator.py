@@ -1,3 +1,5 @@
+"""Módulo aggregator con la(s) clase(s) AggregateAlert, AlertAggregator."""
+
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -17,6 +19,7 @@ DEFAULT_ALERT_POLICY = {
 
 @dataclass
 class AggregateAlert:
+    """Clase de datos que representa AggregateAlert."""
     model_id: str
     information_date: str
     var_type: str
@@ -34,10 +37,13 @@ class AggregateAlert:
 
 
 class AlertAggregator:
-    def __init__(self, policy: Optional[Dict[str, Dict]] = None):
+    """Clase que representa AlertAggregator."""
+    def __init__(self, policy: Optional[Dict[str, Dict]] = None) -> None:
+        """Inicializa una nueva instancia de AlertAggregator."""
         self.policy = policy or DEFAULT_ALERT_POLICY
 
     def aggregate(self, results: List[MetricResult]) -> List[AggregateAlert]:
+        """Método que agrupa."""
         groups = defaultdict(list)
         for r in results:
             key = (r.model_id, r.information_date, r.var_type)

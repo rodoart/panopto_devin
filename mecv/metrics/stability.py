@@ -1,3 +1,7 @@
+"""Módulo stability con las clases PSICanonicalMetric, PSIDynamicMetric, KSMetric, CorrelationDriftMetric y funciones _is_unbounded, _bin_condition, _psi_value, _psi_from_bins, _dynamic_numeric_bins, _dynamic_categorical_bins."""
+
+from typing import Any
+
 import math
 
 import pyspark.sql.functions as F
@@ -5,14 +9,16 @@ import pyspark.sql.functions as F
 from mecv.metrics.base import Metric, MetricRegistry
 
 
-def _is_unbounded(value):
+def _is_unbounded(value: Any) -> bool:
+    """Helper interno que realiza la operación "is_unbounded"."""
     if value is None:
         return True
     s = str(value).lower()
     return s in ("-inf", "inf", "infinity", "-infinity")
 
 
-def _bin_condition(df, variable, b):
+def _bin_condition(df: Any, variable: Any, b: Any) -> Any:
+    """Helper interno que agrupa en bins condition."""
     bin_type = b.get("bin_type", "NUMERIC")
     if bin_type == "CATEGORICAL":
         return df[variable] == b["category_value"]
@@ -43,11 +49,13 @@ def _bin_condition(df, variable, b):
     return cond
 
 
-def _psi_value(actual_props, expected_props, eps=1e-6):
+def _psi_value(actual_props: Any, expected_props: Any, eps: float = 1e-6) -> Any:
+    """Helper interno que realiza la operación "psi_value"."""
     return sum((a - e) * math.log((a + eps) / (e + eps)) for a, e in zip(actual_props, expected_props))
 
 
-def _psi_from_bins(df, baseline, variable, bins):
+def _psi_from_bins(df: Any, baseline: Any, variable: Any, bins: Any) -> Any:
+    """Helper interno que realiza la operación "psi_from_bins"."""
     actual_counts = [df.filter(_bin_condition(df, variable, b)).count() for b in bins]
     total_actual = sum(actual_counts) or 1
     actual_props = [c / total_actual for c in actual_counts]
@@ -64,7 +72,8 @@ def _psi_from_bins(df, baseline, variable, bins):
     return _psi_value(actual_props, expected_props)
 
 
-def _dynamic_numeric_bins(baseline, variable, n_bins):
+def _dynamic_numeric_bins(baseline: Any, variable: Any, n_bins: Any) -> Any:
+    """Helper interno que realiza la operación "dynamic_numeric_bins"."""
     edges = baseline.approxQuantile(variable, [float(i) / n_bins for i in range(1, n_bins)], 0.01)
     edges = [float("-inf")] + edges + [float("inf")]
     bins = []
@@ -79,7 +88,8 @@ def _dynamic_numeric_bins(baseline, variable, n_bins):
     return bins
 
 
-def _dynamic_categorical_bins(baseline, variable, n_bins):
+def _dynamic_categorical_bins(baseline: Any, variable: Any, n_bins: Any) -> Any:
+    """Helper interno que realiza la operación "dynamic_categorical_bins"."""
     rows = baseline.groupBy(F.col(variable)).count().orderBy(F.desc("count")).limit(n_bins).collect()
     bins = []
     for r in rows:
@@ -92,9 +102,11 @@ def _dynamic_categorical_bins(baseline, variable, n_bins):
 
 
 class PSICanonicalMetric(Metric):
+    """Clase que representa PSICanonicalMetric."""
     name = "psi_canonical"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         variable = params["variable"]
         bins = params.get("bins", [])
         if not bins and baseline is not None:
@@ -110,9 +122,11 @@ class PSICanonicalMetric(Metric):
 
 
 class PSIDynamicMetric(Metric):
+    """Clase que representa PSIDynamicMetric."""
     name = "psi_dynamic"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         if baseline is None:
             raise ValueError("psi_dynamic requires a baseline dataframe")
         variable = params["variable"]
@@ -128,9 +142,11 @@ class PSIDynamicMetric(Metric):
 
 
 class KSMetric(Metric):
+    """Clase que representa KSMetric."""
     name = "ks_vs_dev"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         if baseline is None:
             raise ValueError("ks_vs_dev requires a baseline dataframe")
         variable = params["variable"]
@@ -146,9 +162,11 @@ class KSMetric(Metric):
 
 
 class CorrelationDriftMetric(Metric):
+    """Clase que representa CorrelationDriftMetric."""
     name = "correlation_drift"
 
-    def _max_abs_corr(self, df):
+    def _max_abs_corr(self, df: Any) -> Any:
+        """Helper interno que realiza la operación "max_abs_corr"."""
         cols = [c for c, t in df.dtypes if t in ("double", "float", "int", "bigint", "long", "short", "tinyint")]
         maximum = 1e-9
         for i in range(len(cols)):
@@ -158,7 +176,8 @@ class CorrelationDriftMetric(Metric):
                     maximum = max(maximum, abs(c))
         return maximum
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         current = self._max_abs_corr(df)
         baseline_value = None
         if baseline is not None:

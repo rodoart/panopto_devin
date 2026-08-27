@@ -1,3 +1,7 @@
+"""Módulo conjugate con la(s) clase(s) AUCMetric, GiniMetric, BrierScoreMetric, LiftTopDecileMetric, CalibrationSlopeMetric, KSScoreTargetMetric."""
+
+from typing import Any
+
 import pyspark.sql.functions as F
 from pyspark.sql import Window
 from pyspark.ml.feature import VectorAssembler
@@ -8,9 +12,11 @@ from mecv.metrics.common import binary_auc, binary_gini
 
 
 class AUCMetric(Metric):
+    """Clase que representa AUCMetric."""
     name = "auc"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
         value = binary_auc(df, score_col, target_col)
@@ -21,9 +27,11 @@ class AUCMetric(Metric):
 
 
 class GiniMetric(Metric):
+    """Clase que representa GiniMetric."""
     name = "gini"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
         current_gini = binary_gini(df, score_col, target_col)
@@ -40,9 +48,11 @@ class GiniMetric(Metric):
 
 
 class BrierScoreMetric(Metric):
+    """Clase que representa BrierScoreMetric."""
     name = "brier_score"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
         current_brier = df.select(
@@ -63,9 +73,11 @@ class BrierScoreMetric(Metric):
 
 
 class LiftTopDecileMetric(Metric):
+    """Clase que representa LiftTopDecileMetric."""
     name = "lift_top_decile"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
         decile = F.ntile(10).over(Window.orderBy(F.desc(score_col)))
@@ -90,9 +102,11 @@ class LiftTopDecileMetric(Metric):
 
 
 class CalibrationSlopeMetric(Metric):
+    """Clase que representa CalibrationSlopeMetric."""
     name = "calibration_slope"
 
-    def _slope(self, df, score_col, target_col):
+    def _slope(self, df: Any, score_col: Any, target_col: Any) -> Any:
+        """Helper interno que realiza la operación "slope"."""
         df_ml = df.select(F.col(score_col).cast("double").alias(score_col), F.col(target_col).cast("double").alias(target_col)).dropna()
         if df_ml.count() < 2:
             return 1.0
@@ -102,7 +116,8 @@ class CalibrationSlopeMetric(Metric):
         model = lr.fit(vec)
         return float(model.coefficients[0])
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
         slope = self._slope(df, score_col, target_col)
@@ -116,9 +131,11 @@ class CalibrationSlopeMetric(Metric):
 
 
 class KSScoreTargetMetric(Metric):
+    """Clase que representa KSScoreTargetMetric."""
     name = "ks_score_target"
 
-    def calculate(self, df, baseline, thresholds, **params):
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
         df0 = df.filter(F.col(target_col) == 0).select(score_col)

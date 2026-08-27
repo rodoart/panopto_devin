@@ -1,6 +1,8 @@
+"""Módulo calendar con la(s) clase(s) BanamexCalendar."""
+
 import calendar as cal
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 
 from mecv.logging import get_logger
 from mecv.sessions import PostgresSession
@@ -9,10 +11,13 @@ logger = get_logger(__name__)
 
 
 class BanamexCalendar:
-    def __init__(self):
+    """Clase que representa BanamexCalendar."""
+    def __init__(self) -> None:
+        """Inicializa una nueva instancia de BanamexCalendar."""
         self.psql = PostgresSession()
 
-    def is_business_day(self, calendar_date) -> bool:
+    def is_business_day(self, calendar_date: Any) -> bool:
+        """Método que realiza la operación "is_business_day"."""
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -22,7 +27,8 @@ class BanamexCalendar:
                 row = cur.fetchone()
         return row[0] if row else True
 
-    def previous_business_days(self, calendar_date, n: int = 1) -> List[date]:
+    def previous_business_days(self, calendar_date: Any, n: int = 1) -> List[date]:
+        """Método que realiza la operación "previous_business_days"."""
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -38,7 +44,8 @@ class BanamexCalendar:
                 rows = cur.fetchall()
         return [r[0] for r in rows]
 
-    def expected_information_date(self, frequency: str, reference_date=None) -> str:
+    def expected_information_date(self, frequency: str, reference_date: Optional[Any] = None) -> str:
+        """Método que realiza la operación "expected_information_date"."""
         if reference_date is None:
             reference_date = datetime.now().date()
         if frequency in ("daily", "business_daily"):
@@ -49,7 +56,8 @@ class BanamexCalendar:
             return self.last_business_day_of_period(reference_date, "month")
         return reference_date.isoformat()
 
-    def next_business_day(self, calendar_date) -> Optional[date]:
+    def next_business_day(self, calendar_date: Any) -> Optional[date]:
+        """Método que realiza la operación "next_business_day"."""
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -66,12 +74,14 @@ class BanamexCalendar:
         return row[0] if row else None
 
     @staticmethod
-    def _to_date(calendar_date):
+    def _to_date(calendar_date: Any) -> Any:
+        """Helper interno que realiza la operación "to_date"."""
         if isinstance(calendar_date, str):
             return datetime.fromisoformat(calendar_date).date()
         return calendar_date
 
-    def _period_bounds(self, calendar_date, period: str):
+    def _period_bounds(self, calendar_date: Any, period: str) -> Tuple[Any, ...]:
+        """Helper interno que realiza la operación "period_bounds"."""
         d = self._to_date(calendar_date)
         if period == "month":
             start = d.replace(day=1)
@@ -84,7 +94,8 @@ class BanamexCalendar:
             start = end = d
         return start, end
 
-    def first_business_day_of_period(self, calendar_date, period: str) -> str:
+    def first_business_day_of_period(self, calendar_date: Any, period: str) -> str:
+        """Método que realiza la operación "first_business_day_of_period"."""
         start, end = self._period_bounds(calendar_date, period)
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
@@ -105,7 +116,8 @@ class BanamexCalendar:
         d = self._to_date(calendar_date)
         return d.isoformat()
 
-    def last_business_day_of_period(self, calendar_date, period: str) -> str:
+    def last_business_day_of_period(self, calendar_date: Any, period: str) -> str:
+        """Método que realiza la operación "last_business_day_of_period"."""
         start, end = self._period_bounds(calendar_date, period)
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
