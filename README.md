@@ -176,3 +176,12 @@ logger.warning("advertencia")
 ```
 
 Para activarlos en Airflow, asegúrate de que `PYTHONPATH` incluya la raíz del repo y que `dags/` esté en `AIRFLOW__CORE__DAGS_FOLDER`.
+
+## Tests
+
+```bash
+pip install -e ".[dev]"
+python3 -m pytest tests/ -q
+```
+
+El directorio `tests/` contiene un suite de pruebas unitarias con fixtures compartidas (`spark`, `postgres_connection`, `sample_data`). Algunos tests dependen de un entorno local con PySpark; si el runtime de Spark/HDFS no está disponible, al menos ejecuta `python3 -m py_compile tests/**/*.py` para validar la sintaxis.

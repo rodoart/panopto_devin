@@ -12,6 +12,13 @@ dependencies = [
     "psycopg2-binary>=2.9",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mecv*"]
