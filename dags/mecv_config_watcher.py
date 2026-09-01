@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,8 +19,10 @@ def sync_calendar() -> None:
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_sync").build()
     today = datetime.now().date()
     thirty_days_ago = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    calendar_table = PROCESS_CONFIG.banamex_calendar_table
+    sync_table = PROCESS_CONFIG.banamex_calendar_sync_table
     df = spark.sql(f"""
-        SELECT * FROM banamex_calendar_d_t_d
+        SELECT * FROM {calendar_table}
         WHERE calendar_date >= '{thirty_days_ago}'
     """)
     rows = df.collect()
@@ -27,8 +30,8 @@ def sync_calendar() -> None:
     with psql.connection() as conn:
         with conn.cursor() as cur:
             cur.executemany(
-                """
-                INSERT INTO banamex_calendar_sync_d
+                f"""
+                INSERT INTO {sync_table}
                     (calendar_date, is_business_day, is_holiday, holiday_name, sync_timestamp)
                 VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (calendar_date)
@@ -51,13 +54,15 @@ def detect_config_changes(**context: Any) -> None:
     from mecv.sessions import SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_detect").build()
     today = datetime.now().strftime("%Y-%m-%d")
-    latest = spark.sql("""
-        SELECT * FROM model_summary_csi_psi_d_t_d
-        WHERE process_date = (SELECT max(process_date) FROM model_summary_csi_psi_d_t_d)
+    model_summary_table = PROCESS_CONFIG.model_summary_table
+    config_changelog_table = PROCESS_CONFIG.config_changelog_table
+    latest = spark.sql(f"""
+        SELECT * FROM {model_summary_table}
+        WHERE process_date = (SELECT max(process_date) FROM {model_summary_table})
     """)
-    existing = spark.sql("""
+    existing = spark.sql(f"""
         SELECT model_id, max(process_date) AS max_date
-        FROM config_changelog_d_t_d
+        FROM {config_changelog_table}
         GROUP BY model_id
     """)
     latest.createOrReplaceTempView("latest_summary")
@@ -73,9 +78,9 @@ def detect_config_changes(**context: Any) -> None:
     for row in new_models:
         model_id = str(row.model_id)
         spark.sql(f"""
-            INSERT INTO config_changelog_d_t_d VALUES (
+            INSERT INTO {config_changelog_table} VALUES (
                 current_timestamp(),
-                'model_summary_csi_psi_d_t_d',
+                '{model_summary_table}',
                 'NEW_MODEL',
                 '',
                 '',
@@ -98,8 +103,9 @@ def mode_training(**context: Any) -> None:
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_train").build()
     reader = DataReader(spark)
     today = datetime.now().strftime("%Y-%m-%d")
+    config_changelog_table = PROCESS_CONFIG.config_changelog_table
     df = spark.sql(f"""
-        SELECT model_id FROM config_changelog_d_t_d
+        SELECT model_id FROM {config_changelog_table}
         WHERE process_date = '{today}'
           AND change_type = 'NEW_MODEL'
           AND triggered_retraining = true
@@ -120,8 +126,10 @@ def validate_training(**context: Any) -> None:
     from mecv.sessions import SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="mecv_config_watcher_validate").build()
     today = datetime.now().strftime("%Y-%m-%d")
+    config_changelog_table = PROCESS_CONFIG.config_changelog_table
+    metric_threshold_auto_table = PROCESS_CONFIG.metric_threshold_auto_table
     df = spark.sql(f"""
-        SELECT model_id FROM config_changelog_d_t_d
+        SELECT model_id FROM {config_changelog_table}
         WHERE process_date = '{today}'
           AND change_type = 'NEW_MODEL'
           AND triggered_retraining = true
@@ -129,7 +137,7 @@ def validate_training(**context: Any) -> None:
     for row in df.collect():
         mid = str(row.model_id)
         count = spark.sql(f"""
-            SELECT count(*) AS c FROM metric_threshold_auto_d_t_d
+            SELECT count(*) AS c FROM {metric_threshold_auto_table}
             WHERE process_date = '{today}' AND model_id = '{mid}'
         """).collect()[0]["c"]
         if count == 0:

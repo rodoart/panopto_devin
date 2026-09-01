@@ -10,6 +10,7 @@ from pyspark.sql import SparkSession
 from mecv.calendar import BanamexCalendar
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 from mecv.metrics.base import MetricRegistry
 from mecv.metrics.result import MetricResult
@@ -265,18 +266,18 @@ class MetricRunner:
 
     def _load_model_summary(self, model_id: str) -> Dict:
         """Helper interno que carga model summary."""
-        df = self._latest_partition("model_summary_csi_psi_d_t_d", model_id)
+        df = self._latest_partition(PROCESS_CONFIG.model_summary_table, model_id)
         rows = df.collect()
         return rows[0].asDict() if rows else {}
 
     def _load_variable_metadata(self, model_id: str) -> List[Dict]:
         """Helper interno que carga variable metadata."""
-        df = self._latest_partition("variable_metadata_d_t_d", model_id)
+        df = self._latest_partition(PROCESS_CONFIG.variable_metadata_table, model_id)
         return [r.asDict() for r in df.collect()]
 
     def _load_thresholds_table(self, model_id: str) -> Dict:
         """Helper interno que carga thresholds table."""
-        df = self._latest_partition("tresholds_table_d_t_d", model_id)
+        df = self._latest_partition(PROCESS_CONFIG.thresholds_table, model_id)
         out = {}
         for r in df.collect():
             out[(r["variable"], r["type"])] = r.asDict()
@@ -284,7 +285,7 @@ class MetricRunner:
 
     def _load_metric_threshold_auto(self, model_id: str) -> Dict:
         """Helper interno que carga metric threshold auto."""
-        df = self._latest_partition("metric_threshold_auto_d_t_d", model_id)
+        df = self._latest_partition(PROCESS_CONFIG.metric_threshold_auto_table, model_id)
         out = {}
         for r in df.collect():
             out[(r["variable"], r["metric_name"])] = r.asDict()
@@ -292,7 +293,7 @@ class MetricRunner:
 
     def _load_category_policy(self, model_id: str) -> Dict:
         """Helper interno que carga category policy."""
-        df = self._latest_partition("category_policy_d_t_d", model_id)
+        df = self._latest_partition(PROCESS_CONFIG.category_policy_table, model_id)
         out = {}
         for r in df.collect():
             out[r["variable"]] = r.asDict()
@@ -300,7 +301,7 @@ class MetricRunner:
 
     def _load_csi_bins(self, model_id: str) -> Dict:
         """Helper interno que carga csi bins."""
-        df = self._latest_partition("csi_psi_table_d_t_d", model_id)
+        df = self._latest_partition(PROCESS_CONFIG.csi_psi_table, model_id)
         out = defaultdict(list)
         for r in df.collect():
             d = r.asDict()

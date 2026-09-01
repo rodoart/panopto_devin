@@ -4,6 +4,7 @@ import calendar as cal
 from datetime import date, datetime, timedelta
 from typing import Any, List, Optional, Tuple
 
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 from mecv.sessions import PostgresSession
 
@@ -18,10 +19,11 @@ class BanamexCalendar:
 
     def is_business_day(self, calendar_date: Any) -> bool:
         """Método que realiza la operación "is_business_day"."""
+        table = PROCESS_CONFIG.banamex_calendar_sync_table
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT is_business_day FROM banamex_calendar_sync_d WHERE calendar_date = %s",
+                    f"SELECT is_business_day FROM {table} WHERE calendar_date = %s",
                     (calendar_date,),
                 )
                 row = cur.fetchone()
@@ -29,12 +31,13 @@ class BanamexCalendar:
 
     def previous_business_days(self, calendar_date: Any, n: int = 1) -> List[date]:
         """Método que realiza la operación "previous_business_days"."""
+        table = PROCESS_CONFIG.banamex_calendar_sync_table
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT calendar_date
-                    FROM banamex_calendar_sync_d
+                    FROM {table}
                     WHERE calendar_date <= %s AND is_business_day = true
                     ORDER BY calendar_date DESC
                     LIMIT %s
@@ -58,12 +61,13 @@ class BanamexCalendar:
 
     def next_business_day(self, calendar_date: Any) -> Optional[date]:
         """Método que realiza la operación "next_business_day"."""
+        table = PROCESS_CONFIG.banamex_calendar_sync_table
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT calendar_date
-                    FROM banamex_calendar_sync_d
+                    FROM {table}
                     WHERE calendar_date > %s AND is_business_day = true
                     ORDER BY calendar_date ASC
                     LIMIT 1
@@ -97,12 +101,13 @@ class BanamexCalendar:
     def first_business_day_of_period(self, calendar_date: Any, period: str) -> str:
         """Método que realiza la operación "first_business_day_of_period"."""
         start, end = self._period_bounds(calendar_date, period)
+        table = PROCESS_CONFIG.banamex_calendar_sync_table
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT calendar_date
-                    FROM banamex_calendar_sync_d
+                    FROM {table}
                     WHERE calendar_date >= %s AND calendar_date <= %s
                       AND is_business_day = true
                     ORDER BY calendar_date ASC
@@ -119,12 +124,13 @@ class BanamexCalendar:
     def last_business_day_of_period(self, calendar_date: Any, period: str) -> str:
         """Método que realiza la operación "last_business_day_of_period"."""
         start, end = self._period_bounds(calendar_date, period)
+        table = PROCESS_CONFIG.banamex_calendar_sync_table
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT calendar_date
-                    FROM banamex_calendar_sync_d
+                    FROM {table}
                     WHERE calendar_date >= %s AND calendar_date <= %s
                       AND is_business_day = true
                     ORDER BY calendar_date DESC

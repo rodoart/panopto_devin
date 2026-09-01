@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,9 +34,10 @@ def dispatch_alerts(**context: Any) -> None:
     aggregator = AlertAggregator()
     dispatcher = EmailDispatcher()
     calendar = BanamexCalendar()
-    model_summary = spark.sql("""
-        SELECT * FROM model_summary_csi_psi_d_t_d
-        WHERE process_date = (SELECT max(process_date) FROM model_summary_csi_psi_d_t_d)
+    model_summary_table = PROCESS_CONFIG.model_summary_table
+    model_summary = spark.sql(f"""
+        SELECT * FROM {model_summary_table}
+        WHERE process_date = (SELECT max(process_date) FROM {model_summary_table})
           AND status = 'active'
     """)
     for row in model_summary.collect():
@@ -61,7 +63,7 @@ def dispatch_alerts(**context: Any) -> None:
             email_row["information_date"] = information_date
             email_row["model_id"] = model_id
             email_df = spark.createDataFrame([email_row])
-            writer.write_atomic(email_df, "mecv_email_log_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(email_df, PROCESS_CONFIG.email_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         except MissingDataError:
             log = dispatcher.dispatch(
                 model_id=model_id,
@@ -77,7 +79,7 @@ def dispatch_alerts(**context: Any) -> None:
             email_row["information_date"] = information_date
             email_row["model_id"] = model_id
             email_df = spark.createDataFrame([email_row])
-            writer.write_atomic(email_df, "mecv_email_log_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(email_df, PROCESS_CONFIG.email_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         except Exception:
             continue
 
@@ -87,11 +89,12 @@ def handle_missing_data(**context: Any) -> None:
     from mecv.sessions import PostgresSession
     today = datetime.now().date()
     psql = PostgresSession()
+    execution_log_table = PROCESS_CONFIG.execution_log_table
     with psql.connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT model_id, count(*) AS missing_days
-                FROM mecv_execution_log_d_t_d
+                FROM {execution_log_table}
                 WHERE information_date >= %s - interval '7 days'
                   AND status = 'MISSING_DATA'
                 GROUP BY model_id

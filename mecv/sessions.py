@@ -6,6 +6,7 @@ import psycopg2
 from pyspark.sql import SparkSession
 
 from mecv.config import Settings
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,11 +23,12 @@ class SparkSessionBuilder:
         """Método que construye."""
         settings = Settings.from_env()
         builder = SparkSession.builder.appName(self.app_name)
+        warehouse_dir = PROCESS_CONFIG.hive_warehouse_dir or settings.hive_warehouse_dir
         if settings.hive_metastore_uris:
             builder = (
                 builder.config("spark.sql.catalogImplementation", "hive")
                 .config("hive.metastore.uris", settings.hive_metastore_uris)
-                .config("spark.sql.warehouse.dir", settings.hive_warehouse_dir)
+                .config("spark.sql.warehouse.dir", warehouse_dir)
             )
         for key, value in self.extra_conf.items():
             builder = builder.config(key, value)

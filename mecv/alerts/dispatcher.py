@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from mecv.alerts.aggregator import AggregateAlert
 from mecv.alerts.email_builder import EmailBuilder
 from mecv.config import Settings
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 from mecv.metrics.result import MetricResult
 from mecv.sessions import PostgresSession
@@ -97,16 +98,18 @@ class EmailDispatcher:
         """Helper interno que construye recipients."""
         has_red = any(a.aggregate_status == "RED" for a in aggregate_alerts)
         has_ambar = any(a.aggregate_status == "AMBAR" for a in aggregate_alerts)
+        contact_table = PROCESS_CONFIG.model_contact_table
+        red_alert_table = PROCESS_CONFIG.red_alert_list_table
         to_set = set()
         with self.psql.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT contact_email, notify_on_ambar, notify_on_red, notify_on_missing
-                    FROM model_contact_d_t_d
+                    FROM {contact_table}
                     WHERE model_id = %s
                       AND process_date = (
-                          SELECT max(process_date) FROM model_contact_d_t_d WHERE model_id = %s
+                          SELECT max(process_date) FROM {contact_table} WHERE model_id = %s
                       )
                 """,
                     (model_id, model_id),
@@ -122,7 +125,7 @@ class EmailDispatcher:
         if has_red or missing_data:
             with self.psql.connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT email FROM red_alert_list_d WHERE is_active = true")
+                    cur.execute(f"SELECT email FROM {red_alert_table} WHERE is_active = true")
                     for row in cur.fetchall():
                         bcc_set.add(row[0])
         to_list = sorted(to_set)

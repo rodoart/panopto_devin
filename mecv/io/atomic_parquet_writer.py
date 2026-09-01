@@ -7,6 +7,7 @@ from typing import Callable, List, Optional
 from pyspark.sql import DataFrame, Row, SparkSession
 
 from mecv.config import Settings
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -14,13 +15,13 @@ logger = get_logger(__name__)
 
 class AtomicParquetWriter:
     """Clase que representa AtomicParquetWriter."""
-    def __init__(self, spark: SparkSession, base_tmp_path: Optional[str] = None, control_table: str = "mecv_staging_control_d_t_d") -> None:
+    def __init__(self, spark: SparkSession, base_tmp_path: Optional[str] = None, control_table: Optional[str] = None) -> None:
         """Inicializa una nueva instancia de AtomicParquetWriter."""
         self.spark = spark
         settings = Settings.from_env()
-        self.base_tmp_path = (base_tmp_path or settings.hdfs_staging_base).rstrip("/")
-        self.control_table = control_table
-        self.warehouse_dir = settings.hive_warehouse_dir.rstrip("/")
+        self.base_tmp_path = (base_tmp_path or PROCESS_CONFIG.hdfs_staging_base or settings.hdfs_staging_base).rstrip("/")
+        self.control_table = control_table or PROCESS_CONFIG.staging_control_table
+        self.warehouse_dir = (PROCESS_CONFIG.hive_warehouse_dir or settings.hive_warehouse_dir).rstrip("/")
         jvm = spark._jvm
         self.fs = jvm.org.apache.hadoop.fs.FileSystem.get(spark._jsc.hadoopConfiguration())
         self.Path = jvm.org.apache.hadoop.fs.Path

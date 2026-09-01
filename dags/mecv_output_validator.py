@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -19,11 +20,11 @@ def validate_output_tables(**context: Any) -> None:
     logger.info(f"validating output tables for {today}")
     spark = SparkSessionBuilder(app_name="mecv_output_validator").build()
     metric_count = spark.sql(f"""
-        SELECT count(*) AS c FROM mecv_metric_result_d_t_d
+        SELECT count(*) AS c FROM {PROCESS_CONFIG.metric_result_table}
         WHERE information_date = '{today}'
     """).collect()[0]["c"]
     alert_count = spark.sql(f"""
-        SELECT count(*) AS c FROM mecv_alert_aggregate_d_t_d
+        SELECT count(*) AS c FROM {PROCESS_CONFIG.alert_aggregate_table}
         WHERE information_date = '{today}'
     """).collect()[0]["c"]
     if metric_count == 0 or alert_count == 0:
@@ -64,7 +65,7 @@ def log_refresh(**context: Any) -> None:
     }])
     from mecv.io.atomic_parquet_writer import AtomicParquetWriter
     writer = AtomicParquetWriter(spark)
-    writer.write_atomic(log_df, "mecv_execution_log_d_t_d", "__VALIDATOR__", today, execution_id, partition_cols=["information_date", "model_id"])
+    writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, "__VALIDATOR__", today, execution_id, partition_cols=["information_date", "model_id"])
 
 
 with DAG(

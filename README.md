@@ -22,6 +22,17 @@ cp .env.example .env
 | Contactos (`model_contact_d_t_d`) | PostgreSQL |
 | Lista roja global (`red_alert_list_d`) | PostgreSQL |
 
+Los nombres y rutas anteriores se centralizan en `config/tables.json` y se exponen a través de `mecv.config.tables.ProcessConfig`. Para usarlos:
+
+```python
+from mecv.config.tables import PROCESS_CONFIG
+
+table = PROCESS_CONFIG.metric_result_table
+staging = PROCESS_CONFIG.hdfs_staging_base
+```
+
+`ProcessConfig.from_json()` lee `config/tables.json` y permite sobrescribir `hdfs_staging_base` y `hive_warehouse_dir` mediante las variables de entorno `MECV_HDFS_STAGING_BASE` y `MECV_HIVE_WAREHOUSE_DIR`.
+
 ## Muestras
 
 Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejemplo para el modelo `1079_cta_lvl` con fecha de proceso `2025-10-15`.

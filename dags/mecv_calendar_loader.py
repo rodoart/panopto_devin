@@ -9,6 +9,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.sensors.python import PythonSensor
 
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +23,7 @@ def external_calendar_ready(**context: Any) -> bool:
     year = int(ds[:4])
     expected_days = 366 if cal.isleap(year) else 365
     logger.info(f"checking external calendar for year {year}, expecting >= {expected_days} rows")
-    external_table = "banamex_calendar_ext_d"
+    external_table = PROCESS_CONFIG.external_banamex_calendar_table
     spark = SparkSessionBuilder(app_name="mecv_calendar_loader_check").build()
     try:
         count = spark.sql(f"""
@@ -42,11 +43,12 @@ def convert_external_to_hive(**context: Any) -> None:
 
     ds = context["ds"]
     year = int(ds[:4])
-    logger.info(f"converting external calendar to banamex_calendar_d_t_d for year {year}")
-    external_table = "banamex_calendar_ext_d"
+    calendar_table = PROCESS_CONFIG.banamex_calendar_table
+    external_table = PROCESS_CONFIG.external_banamex_calendar_table
+    logger.info(f"converting external calendar to {calendar_table} for year {year}")
     spark = SparkSessionBuilder(app_name="mecv_calendar_loader_convert").build()
     spark.sql(f"""
-        INSERT OVERWRITE TABLE banamex_calendar_d_t_d
+        INSERT OVERWRITE TABLE {calendar_table}
         SELECT
             calendar_date,
             is_business_day,
@@ -56,7 +58,7 @@ def convert_external_to_hive(**context: Any) -> None:
         FROM {external_table}
         WHERE calendar_date >= '{year}-01-01' AND calendar_date <= '{year}-12-31'
     """)
-    logger.info(f"banamex_calendar_d_t_d overwritten for year {year}")
+    logger.info(f"{calendar_table} overwritten for year {year}")
 
 
 def sync_hive_to_postgres(**context: Any) -> None:
@@ -68,9 +70,11 @@ def sync_hive_to_postgres(**context: Any) -> None:
     logger.info(f"syncing banamex calendar to postgres for year {year}")
     spark = SparkSessionBuilder(app_name="mecv_calendar_loader_sync").build()
     psql = PostgresSession()
+    calendar_table = PROCESS_CONFIG.banamex_calendar_table
+    sync_table = PROCESS_CONFIG.banamex_calendar_sync_table
     df = spark.sql(f"""
         SELECT calendar_date, is_business_day, is_holiday, holiday_name
-        FROM banamex_calendar_d_t_d
+        FROM {calendar_table}
         WHERE calendar_date >= '{year}-01-01' AND calendar_date <= '{year}-12-31'
     """)
     rows = [
@@ -80,8 +84,8 @@ def sync_hive_to_postgres(**context: Any) -> None:
     with psql.connection() as conn:
         with conn.cursor() as cur:
             cur.executemany(
-                """
-                INSERT INTO banamex_calendar_sync_d
+                f"""
+                INSERT INTO {sync_table}
                     (calendar_date, is_business_day, is_holiday, holiday_name, sync_timestamp)
                 VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (calendar_date)

@@ -9,6 +9,7 @@ from pyspark.sql import DataFrame, SparkSession, Window
 from mecv.binning import categorical_bins, compute_bin_counts, numeric_bins
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.io.atomic_parquet_writer import AtomicParquetWriter
 from mecv.logging import get_logger
 from mecv.sessions import PostgresSession
@@ -25,20 +26,22 @@ class TrainingMode:
 
     def _load_variable_metadata(self, model_id: str) -> List[Dict[str, Any]]:
         """Helper interno que carga variable metadata."""
+        table = PROCESS_CONFIG.variable_metadata_table
         df = self.spark.sql(f"""
-            SELECT * FROM variable_metadata_d_t_d
+            SELECT * FROM {table}
             WHERE process_date = (
-                SELECT max(process_date) FROM variable_metadata_d_t_d WHERE model_id = '{model_id}'
+                SELECT max(process_date) FROM {table} WHERE model_id = '{model_id}'
             ) AND model_id = '{model_id}'
         """)
         return [r.asDict() for r in df.collect()]
 
     def _load_category_policy(self, model_id: str) -> Dict[str, Dict[str, Any]]:
         """Helper interno que carga category policy."""
+        table = PROCESS_CONFIG.category_policy_table
         df = self.spark.sql(f"""
-            SELECT * FROM category_policy_d_t_d
+            SELECT * FROM {table}
             WHERE process_date = (
-                SELECT max(process_date) FROM category_policy_d_t_d WHERE model_id = '{model_id}'
+                SELECT max(process_date) FROM {table} WHERE model_id = '{model_id}'
             ) AND model_id = '{model_id}'
         """)
         return {r["variable"]: r.asDict() for r in df.collect()}
@@ -233,11 +236,11 @@ class TrainingMode:
 
         if csi_rows:
             csi_df = self.spark.createDataFrame(csi_rows)
-            writer.write_atomic(csi_df, "csi_psi_table_d_t_d", model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            writer.write_atomic(csi_df, PROCESS_CONFIG.csi_psi_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
         if category_rows:
             cat_df = self.spark.createDataFrame(category_rows)
-            writer.write_atomic(cat_df, "category_baseline_rank_d_t_d", model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            writer.write_atomic(cat_df, PROCESS_CONFIG.category_baseline_rank_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
         if metric_rows:
             mt_df = self.spark.createDataFrame(metric_rows)
-            writer.write_atomic(mt_df, "metric_threshold_auto_d_t_d", model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            writer.write_atomic(mt_df, PROCESS_CONFIG.metric_threshold_auto_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
         return True

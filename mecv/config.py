@@ -1,6 +1,9 @@
 """Módulo config con la(s) clase(s) Settings."""
 
 import os
+
+__path__ = [os.path.join(os.path.dirname(__file__), "config")]
+
 from dataclasses import dataclass
 
 

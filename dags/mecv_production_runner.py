@@ -8,6 +8,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -35,15 +36,17 @@ def run_production(**context: Any) -> None:
     logger.info(f"starting production run for {today_str}")
     dag_id = context["dag"]["dag_id"]
 
+    calendar_sync_table = PROCESS_CONFIG.banamex_calendar_sync_table
     with psql.connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT is_business_day FROM banamex_calendar_sync_d WHERE calendar_date = %s", (today,))
+            cur.execute(f"SELECT is_business_day FROM {calendar_sync_table} WHERE calendar_date = %s", (today,))
             row = cur.fetchone()
             is_business = row[0] if row else True
 
-    model_summary = spark.sql("""
-        SELECT * FROM model_summary_csi_psi_d_t_d
-        WHERE process_date = (SELECT max(process_date) FROM model_summary_csi_psi_d_t_d)
+    model_summary_table = PROCESS_CONFIG.model_summary_table
+    model_summary = spark.sql(f"""
+        SELECT * FROM {model_summary_table}
+        WHERE process_date = (SELECT max(process_date) FROM {model_summary_table})
           AND status = 'active'
     """)
     models = [r.asDict() for r in model_summary.collect()]
@@ -82,7 +85,7 @@ def run_production(**context: Any) -> None:
                 "information_date": information_date,
                 "model_id": model_id,
             }])
-            writer.write_atomic(log_df, "mecv_execution_log_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
             continue
         except Exception as exc:
             log_df = spark.createDataFrame([{
@@ -103,7 +106,7 @@ def run_production(**context: Any) -> None:
                 "information_date": information_date,
                 "model_id": model_id,
             }])
-            writer.write_atomic(log_df, "mecv_execution_log_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
             continue
 
         aggregate_alerts = aggregator.aggregate(results)
@@ -148,13 +151,13 @@ def run_production(**context: Any) -> None:
             })
         if metric_rows:
             metrics_df = spark.createDataFrame(metric_rows)
-            writer.write_atomic(metrics_df, "mecv_metric_result_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(metrics_df, PROCESS_CONFIG.metric_result_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         if alert_rows:
             alerts_df = spark.createDataFrame(alert_rows)
-            writer.write_atomic(alerts_df, "mecv_alert_aggregate_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(alerts_df, PROCESS_CONFIG.alert_aggregate_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         if runner.summaries:
             summary_df = spark.createDataFrame(runner.summaries)
-            writer.write_atomic(summary_df, "mecv_variable_summary_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            writer.write_atomic(summary_df, PROCESS_CONFIG.variable_summary_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         log_df = spark.createDataFrame([{
             "execution_id": execution_id,
             "dag_id": dag_id,
@@ -173,7 +176,7 @@ def run_production(**context: Any) -> None:
             "information_date": information_date,
             "model_id": model_id,
         }])
-        writer.write_atomic(log_df, "mecv_execution_log_d_t_d", model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+        writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
 
 
 with DAG(

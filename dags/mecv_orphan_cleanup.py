@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +22,7 @@ def cleanup_orphans(**context: Any) -> None:
     jvm = spark._jvm
     fs = jvm.org.apache.hadoop.fs.FileSystem.get(spark._jsc.hadoopConfiguration())
     Path = jvm.org.apache.hadoop.fs.Path
-    staging = Path("/tmp/mecv_staging")
+    staging = Path(PROCESS_CONFIG.hdfs_staging_base)
     if not fs.exists(staging):
         return
     cutoff = dt.now().timestamp() * 1000 - 7 * 24 * 60 * 60 * 1000
