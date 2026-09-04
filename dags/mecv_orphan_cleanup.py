@@ -28,6 +28,9 @@ def cleanup_orphans(**context: Any) -> None:
     cutoff = dt.now().timestamp() * 1000 - 7 * 24 * 60 * 60 * 1000
     for status in fs.listStatus(staging):
         if status.isDirectory() and status.getModificationTime() < cutoff:
+            path_str = status.getPath().toString().lower()
+            if "checkpoint" in path_str:
+                continue
             fs.delete(status.getPath(), True)
             logger.info(f"deleted {status.getPath().toString()}")
 
@@ -37,8 +40,10 @@ with DAG(
     default_args={
         "owner": "mecv",
         "start_date": datetime(2025, 10, 1),
-        "retries": 1,
+        "retries": 10,
         "retry_delay": timedelta(minutes=5),
+        "email_on_failure": False,
+        "email_on_retry": False,
     },
     schedule="@weekly",
     catchup=False,

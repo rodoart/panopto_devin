@@ -43,9 +43,10 @@ Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejempl
 - `mecv.sessions`: constructores de `SparkSession` y conexión a PostgreSQL.
 - `mecv.calendar`: `BanamexCalendar` para días hábiles y fechas esperadas de información.
 - `mecv.logging`: configuración de logging (`mecv.logging.get_logger`) con `MECV_LOG_LEVEL`.
+- `mecv.checkpoint`: persistencia temporal de DataFrames en parquet para evitar recomputar en reejecuciones.
 - `mecv.data.sources` y `mecv.data.reader`: lectura de fuentes `hive:` y `parquet:` a partir de `variable_metadata`.
 - `mecv.binning`: bines canónicos, categóricos y cálculo de WoE.
-- `mecv.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`.
+- `mecv.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`. También usa `mecv.checkpoint.Checkpoint` para no recomputar bins, umbrales y rankings si ya existen artefactos para el modelo y `process_date`.
 - `mecv.metrics`: motor de métricas con `MetricRegistry` y métricas de calidad, estabilidad, score y conjugadas.
 - `mecv.alerts`: agregador de alertas (`AlertAggregator`), constructor HTML de emails (`EmailBuilder`) y despachador (`EmailDispatcher`).
 
@@ -108,6 +109,15 @@ for r in results:
 
 `MetricRunner` lee `variable_metadata`, `model_summary`, `csi_psi_table`, `tresholds_table`, `metric_threshold_auto` y `category_policy` (última partición), ejecuta las métricas correspondientes por tipo de variable y, si existen `score` y `target`, genera las métricas conjugadas (`auc`, `gini`, `brier_score`, `lift_top_decile`).
 
+`MetricRunner` almacena resultados y resúmenes en parquet temporal usando `mecv.checkpoint.Checkpoint`. Si ya existe un checkpoint válido para la combinación `model_id` + `information_date` + `baseline_date` + `frequency`, la segunda ejecución lee del parquet y no vuelve a computar. La ruta base se configura con `MECV_CHECKPOINT_BASE` (por defecto `<MECV_HDFS_STAGING_BASE>/mecv_checkpoints`). Esto es útil en clústeres con recursos limitados o cuando se coordinan reejecuciones de pruebas.
+
+```python
+from mecv.checkpoint import Checkpoint
+
+checkpoint = Checkpoint(spark, base_path="/tmp/mecv/checkpoints")
+runner = MetricRunner(spark, reader, join_keys=["customer_id"], checkpoint=checkpoint)
+```
+
 El campo `reading_mode` de `variable_metadata_d_t_d` controla qué filas del periodo leer:
 - `each` (default): un solo `information_date`.
 - `first`: primer día hábil del periodo (semana/mes).
@@ -150,6 +160,8 @@ print(log)
 
 `EmailDispatcher` lee `model_contact_d_t_d` y `red_alert_list_d` desde PostgreSQL, arma un email HTML con `EmailBuilder` y lo envía por SMTP usando las credenciales de `.env`.
 
+Para desactivar completamente el envío de correos (por ejemplo, en entornos de prueba o cuando el clúster está inestable), define `MECV_DISABLE_EMAILS=true`. En ese caso `dispatch` retorna inmediatamente un `EmailLog` con `status=DISABLED` sin intentar la conexión SMTP.
+
 ## DAGs de Airflow
 
 Los DAGs están en `dags/`:
@@ -161,7 +173,9 @@ Los DAGs están en `dags/`:
 | `mecv_alert_dispatcher` | Diaria | Genera agregados, arma emails HTML y despacha notificaciones; soporta alertas `MISSING_DATA`. |
 | `mecv_output_validator` | Diaria | Valida que existan datos del día en `mecv_metric_result` y `mecv_alert_aggregate`; placeholder para refresco de Tableau. |
 | `mecv_orphan_cleanup` | Semanal | Elimina directorios HDFS de `/tmp/mecv_staging` con más de 7 días. |
-| `mecv_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d`, convierte a `banamex_calendar_d_t_d` y sincroniza a `banamex_calendar_sync_d`. Si en 2 días no se actualiza, pausa los DAGs `mecv_*` y alerta a la lista roja. |
+| `mecv_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d` hasta 7 días, convierte a `banamex_calendar_d_t_d` y sincroniza a `banamex_calendar_sync_d`. Si se agota el tiempo, pausa los DAGs `mecv_*` sin enviar correos. |
+
+Todos los DAGs tienen `email_on_failure=False` y `email_on_retry=False` para evitar enviar correos por fallas transitorias del clúster, y `retries` elevado para reintentar automáticamente hasta alcanzar el éxito. Las excepciones genéricas en `mecv_production_runner`, `mecv_alert_dispatcher` y `mecv_config_watcher` se propagan para que Airflow reactive la tarea, mientras que `MissingDataError` se registra y continúa con el siguiente modelo.
 
 ## Logging
 
@@ -184,4 +198,4 @@ pip install -e ".[dev]"
 python3 -m pytest tests/ -q
 ```
 
-El directorio `tests/` contiene un suite de pruebas unitarias con fixtures compartidas (`spark`, `postgres_connection`, `sample_data`). Algunos tests dependen de un entorno local con PySpark; si el runtime de Spark/HDFS no está disponible, al menos ejecuta `python3 -m py_compile tests/**/*.py` para validar la sintaxis.
+El directorio `tests/` contiene un suite de pruebas unitarias con fixtures compartidas (`spark`, `postgres_connection`, `sample_data`, `checkpoint`). El fixture `checkpoint` devuelve una instancia de `mecv.checkpoint.Checkpoint` apuntando a un directorio temporal, lo que permite verificar que las corridas de `MetricRunner` se reutilizan en reejecuciones. Algunos tests dependen de un entorno local con PySpark; si el runtime de Spark/HDFS no está disponible, al menos ejecuta `python3 -m py_compile tests/**/*.py` para validar la sintaxis.

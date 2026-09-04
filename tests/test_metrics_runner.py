@@ -173,10 +173,10 @@ def test_metric_runner_resolve_dates_first_monthly(spark: SparkSession):
     assert baseline == ["2025-01-02"]
 
 
-def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_data: dict):
+def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_data: dict, checkpoint):
     """run() loads config tables and returns a list of MetricResult objects."""
     _create_mock_tables(spark, sample_data)
-    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"])
+    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
 
     results = runner.run(
         model_id="M1",
@@ -193,10 +193,10 @@ def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_da
     assert "range_violation" in metric_names
 
 
-def test_metric_runner_missing_data_raises(spark: SparkSession, sample_data: dict):
+def test_metric_runner_missing_data_raises(spark: SparkSession, sample_data: dict, checkpoint):
     """run() raises MissingDataError when no rows match the reading date."""
     _create_mock_tables(spark, sample_data)
-    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"])
+    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
 
     with pytest.raises(MissingDataError):  # noqa: F821
         runner.run(
@@ -205,3 +205,28 @@ def test_metric_runner_missing_data_raises(spark: SparkSession, sample_data: dic
             execution_id="exec_001",
             baseline_date="2025-01-02",
         )
+
+
+def test_metric_runner_reuses_checkpoint(spark: SparkSession, sample_data: dict, checkpoint):
+    """A second run with the same model/date reads cached parquet instead of recomputing."""
+    _create_mock_tables(spark, sample_data)
+    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
+
+    results1 = runner.run(
+        model_id="M1",
+        information_date="2025-01-01",
+        execution_id="exec_001",
+        baseline_date="2025-01-02",
+    )
+    assert isinstance(results1, list)
+    assert len(results1) > 0
+
+    runner2 = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
+    results2 = runner2.run(
+        model_id="M1",
+        information_date="2025-01-01",
+        execution_id="exec_002",
+        baseline_date="2025-01-02",
+    )
+    assert len(results2) == len(results1)
+    assert {r.metric_name for r in results2} == {r.metric_name for r in results1}

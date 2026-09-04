@@ -23,6 +23,8 @@ os.environ.setdefault("MECV_SMTP_PORT", "25")
 os.environ.setdefault("MECV_SMTP_USER", "test@example.com")
 os.environ.setdefault("MECV_SMTP_PASSWORD", "test")
 os.environ.setdefault("MECV_HDFS_STAGING_BASE", "/tmp/mecv_test_staging")
+os.environ.setdefault("MECV_CHECKPOINT_BASE", "/tmp/mecv_test_checkpoints")
+os.environ.setdefault("MECV_DISABLE_EMAILS", "true")
 os.environ.setdefault(
     "MECV_EMAIL_CONFIG_PATH",
     os.path.join(os.path.dirname(__file__), "..", "config", "email_config.json"),
@@ -40,6 +42,10 @@ import pyspark.sql.functions as F  # noqa: E402
 @pytest.fixture(scope="session")
 def spark() -> SparkSession:
     """Build a local SparkSession for the whole test session."""
+    import shutil
+    checkpoint_base = os.environ.get("MECV_CHECKPOINT_BASE", "/tmp/mecv_test_checkpoints")
+    if os.path.isdir(checkpoint_base):
+        shutil.rmtree(checkpoint_base, ignore_errors=True)
     builder = SparkSessionBuilder(
         app_name="mecv-tests",
         extra_conf={
@@ -276,3 +282,11 @@ def sample_data(spark: SparkSession) -> Dict[str, Any]:
         "current_date": current_date,
         "baseline_date": baseline_date,
     }
+
+
+@pytest.fixture
+def checkpoint(spark: SparkSession, tmp_path):
+    """Return a per-test Checkpoint instance backed by a temporary directory."""
+    from mecv.checkpoint import Checkpoint
+    base = str(tmp_path / "checkpoints")
+    return Checkpoint(spark, base)

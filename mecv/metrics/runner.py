@@ -1,13 +1,16 @@
 """Módulo runner con la(s) clase(s) MissingDataError, MetricRunner."""
 
+import dataclasses
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType, TimestampType
 
 from mecv.calendar import BanamexCalendar
+from mecv.checkpoint import Checkpoint
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
 from mecv.config.tables import PROCESS_CONFIG
@@ -78,12 +81,20 @@ NEEDS_BASELINE_DATA = {
 
 class MetricRunner:
     """Clase que representa MetricRunner."""
-    def __init__(self, spark: SparkSession, data_reader: DataReader, join_keys: Optional[List[str]] = None, calendar: Optional[BanamexCalendar] = None) -> None:
+    def __init__(
+        self,
+        spark: SparkSession,
+        data_reader: DataReader,
+        join_keys: Optional[List[str]] = None,
+        calendar: Optional[BanamexCalendar] = None,
+        checkpoint: Optional[Checkpoint] = None,
+    ) -> None:
         """Inicializa una nueva instancia de MetricRunner."""
         self.spark = spark
         self.data_reader = data_reader
         self.join_keys = join_keys or ["customer_id"]
         self.calendar = calendar or BanamexCalendar()
+        self.checkpoint = checkpoint or Checkpoint(spark)
         self.summaries = []
 
     def run(
@@ -98,6 +109,12 @@ class MetricRunner:
         information_date = str(information_date)
         logger.info(f"running metrics for model {model_id}, information_date {information_date}")
         model_summary = self._load_model_summary(model_id)
+        checkpoint_key = self._checkpoint_key(model_id, information_date, baseline_date, model_summary)
+        if self.checkpoint.exists(checkpoint_key, "results") and self.checkpoint.exists(checkpoint_key, "summaries"):
+            logger.info(f"metric results found in checkpoint for {model_id}/{information_date}; skipping computation")
+            results = self._load_results_from_checkpoint(checkpoint_key, execution_id)
+            self.summaries = self._load_summaries_from_checkpoint(checkpoint_key, execution_id)
+            return results
         variables = self._load_variable_metadata(model_id)
         thresholds_table = self._load_thresholds_table(model_id)
         metric_threshold_auto = self._load_metric_threshold_auto(model_id)
@@ -252,6 +269,13 @@ class MetricRunner:
                 results.append(res)
             except Exception:
                 pass
+
+        if results:
+            results_df = self._results_to_df(results)
+            self.checkpoint.write(results_df, checkpoint_key, "results")
+        if self.summaries:
+            summaries_df = self._summaries_to_df(self.summaries)
+            self.checkpoint.write(summaries_df, checkpoint_key, "summaries")
 
         return results
 
@@ -434,3 +458,94 @@ class MetricRunner:
         s = score_df.withColumnRenamed(score_col, "score")
         t = target_df.withColumnRenamed(target_col, "target")
         return s.join(t, on=join_cols, how="inner")
+
+    def _checkpoint_key(
+        self,
+        model_id: str,
+        information_date: str,
+        baseline_date: Optional[str],
+        model_summary: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Construye la clave determinística del checkpoint para una corrida."""
+        return {
+            "model_id": model_id,
+            "information_date": information_date,
+            "baseline_date": baseline_date or "auto",
+            "frequency": str(model_summary.get("frequency", "daily")),
+            "model_summary_process_date": str(model_summary.get("process_date", "")),
+        }
+
+    def _load_results_from_checkpoint(
+        self,
+        checkpoint_key: Dict[str, Any],
+        execution_id: str,
+    ) -> List[MetricResult]:
+        """Recupera resultados de un checkpoint y actualiza el execution_id."""
+        results_df = self.checkpoint.read(checkpoint_key, "results")
+        results = []
+        for row in results_df.collect():
+            row_dict = row.asDict()
+            row_dict["execution_id"] = execution_id
+            results.append(MetricResult(**row_dict))
+        return results
+
+    def _load_summaries_from_checkpoint(
+        self,
+        checkpoint_key: Dict[str, Any],
+        execution_id: str,
+    ) -> List[Dict[str, Any]]:
+        """Recupera resúmenes de un checkpoint y actualiza el execution_id."""
+        summaries_df = self.checkpoint.read(checkpoint_key, "summaries")
+        summaries = []
+        for row in summaries_df.collect():
+            row_dict = row.asDict()
+            row_dict["execution_id"] = execution_id
+            summaries.append(row_dict)
+        return summaries
+
+    @staticmethod
+    def _results_schema() -> StructType:
+        """Esquema para persistir MetricResult en parquet."""
+        return StructType(
+            [
+                StructField("model_id", StringType(), True),
+                StructField("information_date", StringType(), True),
+                StructField("variable", StringType(), True),
+                StructField("var_type", StringType(), True),
+                StructField("metric_name", StringType(), True),
+                StructField("metric_value", DoubleType(), True),
+                StructField("baseline_value", DoubleType(), True),
+                StructField("threshold_ambar", DoubleType(), True),
+                StructField("threshold_red", DoubleType(), True),
+                StructField("status", StringType(), True),
+                StructField("baseline_process_date", StringType(), True),
+                StructField("execution_id", StringType(), True),
+                StructField("run_date", TimestampType(), True),
+            ]
+        )
+
+    def _results_to_df(self, results: List[MetricResult]) -> Any:
+        """Convierte una lista de MetricResult a DataFrame."""
+        rows = [dataclasses.asdict(r) for r in results]
+        return self.spark.createDataFrame(rows, schema=self._results_schema())
+
+    @staticmethod
+    def _summaries_schema() -> StructType:
+        """Esquema para persistir resúmenes de variables en parquet."""
+        return StructType(
+            [
+                StructField("execution_id", StringType(), True),
+                StructField("variable", StringType(), True),
+                StructField("var_type", StringType(), True),
+                StructField("data_type", StringType(), True),
+                StructField("model_id", StringType(), True),
+                StructField("information_date", StringType(), True),
+                StructField("statistic", StringType(), True),
+                StructField("statistic_value", DoubleType(), True),
+                StructField("statistic_value_str", StringType(), True),
+            ]
+        )
+
+    def _summaries_to_df(self, summaries: List[Dict[str, Any]]) -> Any:
+        """Convierte una lista de resúmenes a DataFrame."""
+        return self.spark.createDataFrame(summaries, schema=self._summaries_schema())

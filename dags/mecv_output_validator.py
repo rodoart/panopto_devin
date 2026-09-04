@@ -73,8 +73,10 @@ with DAG(
     default_args={
         "owner": "mecv",
         "start_date": datetime(2025, 10, 1),
-        "retries": 1,
+        "retries": 10,
         "retry_delay": timedelta(minutes=5),
+        "email_on_failure": False,
+        "email_on_retry": False,
     },
     schedule="@daily",
     catchup=False,

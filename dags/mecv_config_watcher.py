@@ -117,7 +117,8 @@ def mode_training(**context: Any) -> None:
             tm.run(model_id, today, context["run_id"])
             logger.info(f"training ok for {model_id}")
         except Exception as exc:
-            logger.warning(f"training failed for {model_id}: {exc}")
+            logger.error(f"training failed for {model_id}: {exc}")
+            raise exc
 
 
 def validate_training(**context: Any) -> None:
@@ -149,8 +150,10 @@ with DAG(
     default_args={
         "owner": "mecv",
         "start_date": datetime(2025, 10, 1),
-        "retries": 1,
+        "retries": 10,
         "retry_delay": timedelta(minutes=5),
+        "email_on_failure": False,
+        "email_on_retry": False,
     },
     schedule=timedelta(minutes=30),
     catchup=False,

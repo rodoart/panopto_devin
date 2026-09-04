@@ -1,12 +1,13 @@
 """Módulo training con la(s) clase(s) TrainingMode."""
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame, SparkSession, Window
 
 from mecv.binning import categorical_bins, compute_bin_counts, numeric_bins
+from mecv.checkpoint import Checkpoint
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
 from mecv.config.tables import PROCESS_CONFIG
@@ -19,10 +20,11 @@ logger = get_logger(__name__)
 
 class TrainingMode:
     """Clase que representa TrainingMode."""
-    def __init__(self, spark: SparkSession, reader: DataReader) -> None:
+    def __init__(self, spark: SparkSession, reader: DataReader, checkpoint: Optional[Checkpoint] = None) -> None:
         """Inicializa una nueva instancia de TrainingMode."""
         self.spark = spark
         self.reader = reader
+        self.checkpoint = checkpoint or Checkpoint(spark)
 
     def _load_variable_metadata(self, model_id: str) -> List[Dict[str, Any]]:
         """Helper interno que carga variable metadata."""
@@ -164,6 +166,23 @@ class TrainingMode:
             })
         return rows
 
+    def _checkpoint_key(
+        self,
+        model_id: str,
+        process_date: str,
+        variables: List[Dict[str, Any]],
+        category_policy: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Construye la clave determinística del checkpoint de entrenamiento."""
+        variable_metadata_pd = str(variables[0].get("process_date", process_date)) if variables else process_date
+        category_policy_pd = str(next(iter(category_policy.values())).get("process_date", process_date)) if category_policy else process_date
+        return {
+            "model_id": model_id,
+            "process_date": process_date,
+            "variable_metadata_process_date": variable_metadata_pd,
+            "category_policy_process_date": category_policy_pd,
+        }
+
     def run(self, model_id: str, process_date: str, execution_id: str) -> bool:
         """Método que ejecuta."""
         model_id = str(model_id)
@@ -172,6 +191,20 @@ class TrainingMode:
         variables = self._load_variable_metadata(model_id)
         category_policy = self._load_category_policy(model_id)
         writer = AtomicParquetWriter(self.spark)
+        checkpoint_key = self._checkpoint_key(model_id, process_date, variables, category_policy)
+        if (
+            self.checkpoint.exists(checkpoint_key, "metric_threshold_auto")
+            and self.checkpoint.exists(checkpoint_key, "csi_psi_table")
+            and self.checkpoint.exists(checkpoint_key, "category_baseline_rank")
+        ):
+            logger.info(f"training artifacts found in checkpoint for {model_id}/{process_date}; skipping computation")
+            csi_df = self.checkpoint.read(checkpoint_key, "csi_psi_table")
+            cat_df = self.checkpoint.read(checkpoint_key, "category_baseline_rank")
+            mt_df = self.checkpoint.read(checkpoint_key, "metric_threshold_auto")
+            writer.write_atomic(csi_df, PROCESS_CONFIG.csi_psi_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            writer.write_atomic(cat_df, PROCESS_CONFIG.category_baseline_rank_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            writer.write_atomic(mt_df, PROCESS_CONFIG.metric_threshold_auto_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            return True
         csi_rows = []
         category_rows = []
         metric_rows = []
@@ -237,10 +270,13 @@ class TrainingMode:
         if csi_rows:
             csi_df = self.spark.createDataFrame(csi_rows)
             writer.write_atomic(csi_df, PROCESS_CONFIG.csi_psi_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            self.checkpoint.write(csi_df, checkpoint_key, "csi_psi_table")
         if category_rows:
             cat_df = self.spark.createDataFrame(category_rows)
             writer.write_atomic(cat_df, PROCESS_CONFIG.category_baseline_rank_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            self.checkpoint.write(cat_df, checkpoint_key, "category_baseline_rank")
         if metric_rows:
             mt_df = self.spark.createDataFrame(metric_rows)
             writer.write_atomic(mt_df, PROCESS_CONFIG.metric_threshold_auto_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
+            self.checkpoint.write(mt_df, checkpoint_key, "metric_threshold_auto")
         return True

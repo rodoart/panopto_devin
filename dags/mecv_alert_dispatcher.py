@@ -80,8 +80,9 @@ def dispatch_alerts(**context: Any) -> None:
             email_row["model_id"] = model_id
             email_df = spark.createDataFrame([email_row])
             writer.write_atomic(email_df, PROCESS_CONFIG.email_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
-        except Exception:
-            continue
+        except Exception as exc:
+            logger.error(f"alert dispatch failed for {model_id}: {exc}")
+            raise exc
 
 
 def handle_missing_data(**context: Any) -> None:
@@ -109,8 +110,10 @@ with DAG(
     default_args={
         "owner": "mecv",
         "start_date": datetime(2025, 10, 1),
-        "retries": 1,
+        "retries": 10,
         "retry_delay": timedelta(minutes=5),
+        "email_on_failure": False,
+        "email_on_retry": False,
     },
     schedule="@daily",
     catchup=False,

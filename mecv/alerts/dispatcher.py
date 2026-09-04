@@ -68,9 +68,23 @@ class EmailDispatcher:
         model_id = str(model_id)
         information_date = str(information_date)
         alert_type = "MISSING_DATA" if missing_data else self._overall_status(aggregate_alerts)
+        subject = self._build_subject(model_id, information_date, alert_type)
+        if os.getenv("MECV_DISABLE_EMAILS", "false").lower() in ("1", "true", "yes", "on"):
+            logger.warning(f"emails disabled; skipping {alert_type} for {model_id} {information_date}")
+            return EmailLog(
+                email_id=str(uuid.uuid4()),
+                execution_id=execution_id,
+                alert_type=alert_type,
+                recipients_to="",
+                recipients_bcc="",
+                subject=subject,
+                body_summary="",
+                sent_timestamp=datetime.now(),
+                status="DISABLED",
+                smtp_response="emails disabled by MECV_DISABLE_EMAILS",
+            )
         logger.info(f"dispatching {alert_type} for {model_id} {information_date}")
         to_list, bcc_list = self._build_recipients(model_id, aggregate_alerts, missing_data)
-        subject = self._build_subject(model_id, information_date, alert_type)
         html = EmailBuilder(self.config).build_html(
             model_id=model_id,
             model_name=model_name,

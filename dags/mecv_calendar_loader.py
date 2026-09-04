@@ -117,33 +117,10 @@ def pause_dependent_dags(context: Any) -> None:
         session.close()
 
 
-def send_red_alert(context: Any) -> None:
-    """Función que envía red alert."""
-    from mecv.alerts.dispatcher import EmailDispatcher
-
-    ds = context.get("ds")
-    run_id = context.get("run_id")
-    dispatcher = EmailDispatcher()
-    try:
-        dispatcher.dispatch(
-            model_id="__CALENDAR__",
-            information_date=ds,
-            aggregate_alerts=[],
-            metric_results=[],
-            model_name="Calendario Banamex",
-            missing_data=True,
-            missing_days=2,
-            execution_id=run_id,
-        )
-    except Exception:
-        pass
-
-
 def calendar_load_failure(context: Any) -> None:
     """Función que realiza la operación "calendar_load_failure"."""
-    logger.error("calendar load failed after 2 days, pausing dependent DAGs and alerting red list")
+    logger.error("calendar load failed after max sensor timeout; pausing dependent DAGs")
     pause_dependent_dags(context)
-    send_red_alert(context)
 
 
 with DAG(
@@ -151,6 +128,10 @@ with DAG(
     default_args={
         "owner": "mecv",
         "start_date": datetime(2025, 1, 1),
+        "retries": 5,
+        "retry_delay": timedelta(minutes=10),
+        "email_on_failure": False,
+        "email_on_retry": False,
         "on_failure_callback": calendar_load_failure,
     },
     schedule="@yearly",
@@ -161,7 +142,7 @@ with DAG(
         task_id="wait_for_external_calendar",
         python_callable=external_calendar_ready,
         poke_interval=timedelta(hours=1),
-        timeout=timedelta(days=2),
+        timeout=timedelta(days=7),
         mode="reschedule",
         soft_fail=False,
     )

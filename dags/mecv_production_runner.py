@@ -107,7 +107,7 @@ def run_production(**context: Any) -> None:
                 "model_id": model_id,
             }])
             writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
-            continue
+            raise exc
 
         aggregate_alerts = aggregator.aggregate(results)
         metric_rows = []
@@ -184,8 +184,10 @@ with DAG(
     default_args={
         "owner": "mecv",
         "start_date": datetime(2025, 10, 1),
-        "retries": 1,
+        "retries": 10,
         "retry_delay": timedelta(minutes=5),
+        "email_on_failure": False,
+        "email_on_retry": False,
     },
     schedule="@daily",
     catchup=False,
