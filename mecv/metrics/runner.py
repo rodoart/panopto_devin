@@ -7,13 +7,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
-from pyspark.sql.types import DoubleType, StringType, StructField, StructType, TimestampType
 
 from mecv.calendar import BanamexCalendar
 from mecv.checkpoint import Checkpoint
+from mecv.config.schemas import OutputSchemas
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
-from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 from mecv.metrics.base import MetricRegistry
 from mecv.metrics.result import MetricResult
@@ -95,6 +95,7 @@ class MetricRunner:
         self.join_keys = join_keys or ["customer_id"]
         self.calendar = calendar or BanamexCalendar()
         self.checkpoint = checkpoint or Checkpoint(spark)
+        self.output_schemas = OutputSchemas()
         self.summaries = []
 
     def run(
@@ -482,11 +483,13 @@ class MetricRunner:
     ) -> List[MetricResult]:
         """Recupera resultados de un checkpoint y actualiza el execution_id."""
         results_df = self.checkpoint.read(checkpoint_key, "results")
+        metric_fields = set(MetricResult.__dataclass_fields__.keys())
         results = []
         for row in results_df.collect():
             row_dict = row.asDict()
             row_dict["execution_id"] = execution_id
-            results.append(MetricResult(**row_dict))
+            filtered = {k: v for k, v in row_dict.items() if k in metric_fields}
+            results.append(MetricResult(**filtered))
         return results
 
     def _load_summaries_from_checkpoint(
@@ -503,49 +506,15 @@ class MetricRunner:
             summaries.append(row_dict)
         return summaries
 
-    @staticmethod
-    def _results_schema() -> StructType:
-        """Esquema para persistir MetricResult en parquet."""
-        return StructType(
-            [
-                StructField("model_id", StringType(), True),
-                StructField("information_date", StringType(), True),
-                StructField("variable", StringType(), True),
-                StructField("var_type", StringType(), True),
-                StructField("metric_name", StringType(), True),
-                StructField("metric_value", DoubleType(), True),
-                StructField("baseline_value", DoubleType(), True),
-                StructField("threshold_ambar", DoubleType(), True),
-                StructField("threshold_red", DoubleType(), True),
-                StructField("status", StringType(), True),
-                StructField("baseline_process_date", StringType(), True),
-                StructField("execution_id", StringType(), True),
-                StructField("run_date", TimestampType(), True),
-            ]
-        )
-
     def _results_to_df(self, results: List[MetricResult]) -> Any:
-        """Convierte una lista de MetricResult a DataFrame."""
+        """Convierte una lista de MetricResult a DataFrame usando el esquema externo."""
         rows = [dataclasses.asdict(r) for r in results]
-        return self.spark.createDataFrame(rows, schema=self._results_schema())
-
-    @staticmethod
-    def _summaries_schema() -> StructType:
-        """Esquema para persistir resúmenes de variables en parquet."""
-        return StructType(
-            [
-                StructField("execution_id", StringType(), True),
-                StructField("variable", StringType(), True),
-                StructField("var_type", StringType(), True),
-                StructField("data_type", StringType(), True),
-                StructField("model_id", StringType(), True),
-                StructField("information_date", StringType(), True),
-                StructField("statistic", StringType(), True),
-                StructField("statistic_value", DoubleType(), True),
-                StructField("statistic_value_str", StringType(), True),
-            ]
-        )
+        rows = self.output_schemas.normalize_rows(PROCESS_CONFIG.metric_result_table, rows)
+        schema = self.output_schemas.get(PROCESS_CONFIG.metric_result_table)
+        return self.spark.createDataFrame(rows, schema=schema)
 
     def _summaries_to_df(self, summaries: List[Dict[str, Any]]) -> Any:
-        """Convierte una lista de resúmenes a DataFrame."""
-        return self.spark.createDataFrame(summaries, schema=self._summaries_schema())
+        """Convierte una lista de resúmenes a DataFrame usando el esquema externo."""
+        rows = self.output_schemas.normalize_rows(PROCESS_CONFIG.variable_summary_table, summaries)
+        schema = self.output_schemas.get(PROCESS_CONFIG.variable_summary_table)
+        return self.spark.createDataFrame(rows, schema=schema)

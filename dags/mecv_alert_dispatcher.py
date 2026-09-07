@@ -20,12 +20,14 @@ def dispatch_alerts(**context: Any) -> None:
     from mecv.alerts.aggregator import AlertAggregator
     from mecv.alerts.dispatcher import EmailDispatcher
     from mecv.calendar import BanamexCalendar
+    from mecv.config.schemas import OutputSchemas
     from mecv.data.reader import DataReader
     from mecv.io.atomic_parquet_writer import AtomicParquetWriter
     from mecv.metrics.runner import MetricRunner, MissingDataError
     from mecv.sessions import SparkSessionBuilder
 
     today = dt.now().date()
+    schemas = OutputSchemas()
     today_str = today.strftime("%Y-%m-%d")
     execution_id = context["run_id"]
     spark = SparkSessionBuilder(app_name="mecv_alert_dispatcher").build()
@@ -62,7 +64,10 @@ def dispatch_alerts(**context: Any) -> None:
             email_row = dataclasses.asdict(log)
             email_row["information_date"] = information_date
             email_row["model_id"] = model_id
-            email_df = spark.createDataFrame([email_row])
+            email_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.email_log_table, [email_row]),
+                schema=schemas.get(PROCESS_CONFIG.email_log_table),
+            )
             writer.write_atomic(email_df, PROCESS_CONFIG.email_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         except MissingDataError:
             log = dispatcher.dispatch(
@@ -78,7 +83,10 @@ def dispatch_alerts(**context: Any) -> None:
             email_row = dataclasses.asdict(log)
             email_row["information_date"] = information_date
             email_row["model_id"] = model_id
-            email_df = spark.createDataFrame([email_row])
+            email_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.email_log_table, [email_row]),
+                schema=schemas.get(PROCESS_CONFIG.email_log_table),
+            )
             writer.write_atomic(email_df, PROCESS_CONFIG.email_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         except Exception as exc:
             logger.error(f"alert dispatch failed for {model_id}: {exc}")

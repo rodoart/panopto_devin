@@ -20,11 +20,13 @@ def run_production(**context: Any) -> None:
     from mecv.alerts.aggregator import AlertAggregator
     from mecv.calendar import BanamexCalendar
     from mecv.data.reader import DataReader
+    from mecv.config.schemas import OutputSchemas
     from mecv.io.atomic_parquet_writer import AtomicParquetWriter
     from mecv.metrics.runner import MetricRunner, MissingDataError
     from mecv.sessions import PostgresSession, SparkSessionBuilder
 
     spark = SparkSessionBuilder(app_name="mecv_production_runner").build()
+    schemas = OutputSchemas()
     reader = DataReader(spark)
     psql = PostgresSession()
     writer = AtomicParquetWriter(spark)
@@ -67,45 +69,51 @@ def run_production(**context: Any) -> None:
             runner = MetricRunner(spark, reader, join_keys=["customer_id"], calendar=calendar)
             results = runner.run(model_id, information_date, execution_id, baseline_date=baseline_date)
         except MissingDataError as exc:
-            log_df = spark.createDataFrame([{
-                "execution_id": execution_id,
-                "dag_id": dag_id,
-                "airflow_run_id": execution_id,
-                "run_date": start,
-                "end_date": dt.now(),
-                "status": "MISSING_DATA",
-                "error_message": str(exc),
-                "reason": "SCHEDULED",
-                "variables_expected": 0,
-                "variables_processed": 0,
-                "variables_missing": 1,
-                "metrics_calculated": 0,
-                "metrics_failed": 0,
-                "duration_seconds": (dt.now() - start).seconds,
-                "information_date": information_date,
-                "model_id": model_id,
-            }])
+            log_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
+                    "execution_id": execution_id,
+                    "dag_id": dag_id,
+                    "airflow_run_id": execution_id,
+                    "run_date": start,
+                    "end_date": dt.now(),
+                    "status": "MISSING_DATA",
+                    "error_message": str(exc),
+                    "reason": "SCHEDULED",
+                    "variables_expected": 0,
+                    "variables_processed": 0,
+                    "variables_missing": 1,
+                    "metrics_calculated": 0,
+                    "metrics_failed": 0,
+                    "duration_seconds": (dt.now() - start).seconds,
+                    "information_date": information_date,
+                    "model_id": model_id,
+                }]),
+                schema=schemas.get(PROCESS_CONFIG.execution_log_table),
+            )
             writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
             continue
         except Exception as exc:
-            log_df = spark.createDataFrame([{
-                "execution_id": execution_id,
-                "dag_id": dag_id,
-                "airflow_run_id": execution_id,
-                "run_date": start,
-                "end_date": dt.now(),
-                "status": "FAILED",
-                "error_message": str(exc),
-                "reason": "SCHEDULED",
-                "variables_expected": 0,
-                "variables_processed": 0,
-                "variables_missing": 0,
-                "metrics_calculated": 0,
-                "metrics_failed": 0,
-                "duration_seconds": 0,
-                "information_date": information_date,
-                "model_id": model_id,
-            }])
+            log_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
+                    "execution_id": execution_id,
+                    "dag_id": dag_id,
+                    "airflow_run_id": execution_id,
+                    "run_date": start,
+                    "end_date": dt.now(),
+                    "status": "FAILED",
+                    "error_message": str(exc),
+                    "reason": "SCHEDULED",
+                    "variables_expected": 0,
+                    "variables_processed": 0,
+                    "variables_missing": 0,
+                    "metrics_calculated": 0,
+                    "metrics_failed": 0,
+                    "duration_seconds": 0,
+                    "information_date": information_date,
+                    "model_id": model_id,
+                }]),
+                schema=schemas.get(PROCESS_CONFIG.execution_log_table),
+            )
             writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
             raise exc
 
@@ -150,32 +158,44 @@ def run_production(**context: Any) -> None:
                 "model_id": model_id,
             })
         if metric_rows:
-            metrics_df = spark.createDataFrame(metric_rows)
+            metrics_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.metric_result_table, metric_rows),
+                schema=schemas.get(PROCESS_CONFIG.metric_result_table),
+            )
             writer.write_atomic(metrics_df, PROCESS_CONFIG.metric_result_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         if alert_rows:
-            alerts_df = spark.createDataFrame(alert_rows)
+            alerts_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.alert_aggregate_table, alert_rows),
+                schema=schemas.get(PROCESS_CONFIG.alert_aggregate_table),
+            )
             writer.write_atomic(alerts_df, PROCESS_CONFIG.alert_aggregate_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
         if runner.summaries:
-            summary_df = spark.createDataFrame(runner.summaries)
+            summary_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.variable_summary_table, runner.summaries),
+                schema=schemas.get(PROCESS_CONFIG.variable_summary_table),
+            )
             writer.write_atomic(summary_df, PROCESS_CONFIG.variable_summary_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
-        log_df = spark.createDataFrame([{
-            "execution_id": execution_id,
-            "dag_id": dag_id,
-            "airflow_run_id": execution_id,
-            "run_date": start,
-            "end_date": dt.now(),
-            "status": "SUCCESS",
-            "error_message": "",
-            "reason": "SCHEDULED",
-            "variables_expected": len({r.variable for r in results}),
-            "variables_processed": len({r.variable for r in results}),
-            "variables_missing": 0,
-            "metrics_calculated": len(results),
-            "metrics_failed": 0,
-            "duration_seconds": (dt.now() - start).seconds,
-            "information_date": information_date,
-            "model_id": model_id,
-        }])
+        log_df = spark.createDataFrame(
+            schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
+                "execution_id": execution_id,
+                "dag_id": dag_id,
+                "airflow_run_id": execution_id,
+                "run_date": start,
+                "end_date": dt.now(),
+                "status": "SUCCESS",
+                "error_message": "",
+                "reason": "SCHEDULED",
+                "variables_expected": len({r.variable for r in results}),
+                "variables_processed": len({r.variable for r in results}),
+                "variables_missing": 0,
+                "metrics_calculated": len(results),
+                "metrics_failed": 0,
+                "duration_seconds": (dt.now() - start).seconds,
+                "information_date": information_date,
+                "model_id": model_id,
+            }]),
+            schema=schemas.get(PROCESS_CONFIG.execution_log_table),
+        )
         writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
 
 

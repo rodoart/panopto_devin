@@ -7,6 +7,7 @@ from typing import Callable, List, Optional
 from pyspark.sql import DataFrame, Row, SparkSession
 
 from mecv.config import Settings
+from mecv.config.schemas import OutputSchemas
 from mecv.config.tables import PROCESS_CONFIG
 from mecv.logging import get_logger
 
@@ -22,6 +23,7 @@ class AtomicParquetWriter:
         self.base_tmp_path = (base_tmp_path or PROCESS_CONFIG.hdfs_staging_base or settings.hdfs_staging_base).rstrip("/")
         self.control_table = control_table or PROCESS_CONFIG.staging_control_table
         self.warehouse_dir = (PROCESS_CONFIG.hive_warehouse_dir or settings.hive_warehouse_dir).rstrip("/")
+        self.output_schemas = OutputSchemas()
         jvm = spark._jvm
         self.fs = jvm.org.apache.hadoop.fs.FileSystem.get(spark._jsc.hadoopConfiguration())
         self.Path = jvm.org.apache.hadoop.fs.Path
@@ -139,7 +141,11 @@ class AtomicParquetWriter:
             "promoted_at": None,
             "process_date": process_date,
         }
-        control_df = self.spark.createDataFrame([Row(**row)])
+        schema = self.output_schemas.get(self.control_table)
+        control_df = self.spark.createDataFrame(
+            self.output_schemas.normalize_rows(self.control_table, [row]),
+            schema=schema,
+        )
         control_df.write.mode("append").insertInto(self.control_table)
 
     def _update_staging_status(self, staging_id: str, status: str, row_count_final: int) -> None:

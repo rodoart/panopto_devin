@@ -39,30 +39,35 @@ def trigger_tableau_refresh(**context: Any) -> None:
 
 def log_refresh(**context: Any) -> None:
     """Función que registra refresh."""
+    from mecv.config.schemas import OutputSchemas
     from mecv.sessions import SparkSessionBuilder
     from datetime import datetime as dt
     today = dt.now().strftime("%Y-%m-%d")
     spark = SparkSessionBuilder(app_name="mecv_output_validator_log").build()
     execution_id = context["run_id"]
     dag_id = context["dag"]["dag_id"]
-    log_df = spark.createDataFrame([{
-        "execution_id": execution_id,
-        "dag_id": dag_id,
-        "airflow_run_id": execution_id,
-        "run_date": dt.now(),
-        "end_date": dt.now(),
-        "status": "SUCCESS",
-        "error_message": "",
-        "reason": "SCHEDULED",
-        "variables_expected": 0,
-        "variables_processed": 0,
-        "variables_missing": 0,
-        "metrics_calculated": 0,
-        "metrics_failed": 0,
-        "duration_seconds": 0,
-        "information_date": today,
-        "model_id": "__VALIDATOR__",
-    }])
+    schemas = OutputSchemas()
+    log_df = spark.createDataFrame(
+        schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
+            "execution_id": execution_id,
+            "dag_id": dag_id,
+            "airflow_run_id": execution_id,
+            "run_date": dt.now(),
+            "end_date": dt.now(),
+            "status": "SUCCESS",
+            "error_message": "",
+            "reason": "SCHEDULED",
+            "variables_expected": 0,
+            "variables_processed": 0,
+            "variables_missing": 0,
+            "metrics_calculated": 0,
+            "metrics_failed": 0,
+            "duration_seconds": 0,
+            "information_date": today,
+            "model_id": "__VALIDATOR__",
+        }]),
+        schema=schemas.get(PROCESS_CONFIG.execution_log_table),
+    )
     from mecv.io.atomic_parquet_writer import AtomicParquetWriter
     writer = AtomicParquetWriter(spark)
     writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, "__VALIDATOR__", today, execution_id, partition_cols=["information_date", "model_id"])

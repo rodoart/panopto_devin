@@ -33,13 +33,27 @@ staging = PROCESS_CONFIG.hdfs_staging_base
 
 `ProcessConfig.from_json()` lee `config/tables.json` y permite sobrescribir `hdfs_staging_base` y `hive_warehouse_dir` mediante las variables de entorno `MECV_HDFS_STAGING_BASE` y `MECV_HIVE_WAREHOUSE_DIR`.
 
+## Esquemas de tablas de salida
+
+Los esquemas de todas las tablas de salida se centralizan en `config/output_schemas.json` y se exponen a través de `mecv.config.schemas.OutputSchemas`:
+
+```python
+from mecv.config.schemas import OutputSchemas
+from mecv.config.tables import PROCESS_CONFIG
+
+schema = OutputSchemas().get(PROCESS_CONFIG.metric_result_table)
+df = spark.createDataFrame(rows, schema=schema)
+```
+
+Esto evita definir `StructType` o columnas hardcodeadas en el código de negocio y facilita versionar los esquemas junto al DDL (`sql/ddl_hive.sql`).
+
 ## Muestras
 
 Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejemplo para el modelo `1079_cta_lvl` con fecha de proceso `2025-10-15`.
 
 ## Paquete `mecv`
 
-- `mecv.config`: carga de variables de entorno.
+- `mecv.config`: carga de variables de entorno y esquemas de tablas de salida (`mecv.config.schemas.OutputSchemas`).
 - `mecv.sessions`: constructores de `SparkSession` y conexión a PostgreSQL.
 - `mecv.calendar`: `BanamexCalendar` para días hábiles y fechas esperadas de información.
 - `mecv.logging`: configuración de logging (`mecv.logging.get_logger`) con `MECV_LOG_LEVEL`.

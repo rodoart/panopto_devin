@@ -8,9 +8,10 @@ from pyspark.sql import DataFrame, SparkSession, Window
 
 from mecv.binning import categorical_bins, compute_bin_counts, numeric_bins
 from mecv.checkpoint import Checkpoint
+from mecv.config.schemas import OutputSchemas
+from mecv.config.tables import PROCESS_CONFIG
 from mecv.data.reader import DataReader
 from mecv.data.sources import DataSourceSpec
-from mecv.config.tables import PROCESS_CONFIG
 from mecv.io.atomic_parquet_writer import AtomicParquetWriter
 from mecv.logging import get_logger
 from mecv.sessions import PostgresSession
@@ -25,6 +26,7 @@ class TrainingMode:
         self.spark = spark
         self.reader = reader
         self.checkpoint = checkpoint or Checkpoint(spark)
+        self.output_schemas = OutputSchemas()
 
     def _load_variable_metadata(self, model_id: str) -> List[Dict[str, Any]]:
         """Helper interno que carga variable metadata."""
@@ -267,16 +269,26 @@ class TrainingMode:
                 self._auto_thresholds(df, variable, data_type, var_type, sample_size)
             )
 
+        for row in metric_rows:
+            row["process_date"] = process_date
+            row["model_id"] = model_id
+
         if csi_rows:
-            csi_df = self.spark.createDataFrame(csi_rows)
+            csi_rows = self.output_schemas.normalize_rows(PROCESS_CONFIG.csi_psi_table, csi_rows)
+            csi_schema = self.output_schemas.get(PROCESS_CONFIG.csi_psi_table)
+            csi_df = self.spark.createDataFrame(csi_rows, schema=csi_schema)
             writer.write_atomic(csi_df, PROCESS_CONFIG.csi_psi_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
             self.checkpoint.write(csi_df, checkpoint_key, "csi_psi_table")
         if category_rows:
-            cat_df = self.spark.createDataFrame(category_rows)
+            category_rows = self.output_schemas.normalize_rows(PROCESS_CONFIG.category_baseline_rank_table, category_rows)
+            cat_schema = self.output_schemas.get(PROCESS_CONFIG.category_baseline_rank_table)
+            cat_df = self.spark.createDataFrame(category_rows, schema=cat_schema)
             writer.write_atomic(cat_df, PROCESS_CONFIG.category_baseline_rank_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
             self.checkpoint.write(cat_df, checkpoint_key, "category_baseline_rank")
         if metric_rows:
-            mt_df = self.spark.createDataFrame(metric_rows)
+            metric_rows = self.output_schemas.normalize_rows(PROCESS_CONFIG.metric_threshold_auto_table, metric_rows)
+            mt_schema = self.output_schemas.get(PROCESS_CONFIG.metric_threshold_auto_table)
+            mt_df = self.spark.createDataFrame(metric_rows, schema=mt_schema)
             writer.write_atomic(mt_df, PROCESS_CONFIG.metric_threshold_auto_table, model_id, process_date, execution_id, partition_cols=["process_date", "model_id"])
             self.checkpoint.write(mt_df, checkpoint_key, "metric_threshold_auto")
         return True
