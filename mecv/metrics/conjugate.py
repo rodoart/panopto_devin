@@ -76,22 +76,26 @@ class LiftTopDecileMetric(Metric):
     """Clase que representa LiftTopDecileMetric."""
     name = "lift_top_decile"
 
+    def _lift(self, df: Any, score_col: Any, target_col: Any) -> float:
+        """Cálculo de lift top decil en una sola pasada."""
+        decile = F.ntile(10).over(Window.orderBy(F.desc(score_col)))
+        dec_df = df.withColumn("decile", decile)
+        row = dec_df.agg(
+            F.mean(F.col(target_col)).alias("overall"),
+            F.avg(F.when(F.col("decile") == 1, F.col(target_col))).alias("top"),
+        ).collect()[0]
+        overall = row["overall"]
+        top = row["top"]
+        return (top / overall) if overall else 0.0
+
     def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
         """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
-        decile = F.ntile(10).over(Window.orderBy(F.desc(score_col)))
-        current_dec = df.withColumn("decile", decile)
-        overall = df.agg(F.mean(target_col).alias("m")).collect()[0]["m"]
-        top = current_dec.filter(F.col("decile") == 1).agg(F.mean(target_col).alias("m")).collect()[0]["m"]
-        current_lift = (top / overall) if overall else 0.0
+        current_lift = self._lift(df, score_col, target_col)
         baseline_value = None
         if baseline is not None:
-            b_decile = F.ntile(10).over(Window.orderBy(F.desc(score_col)))
-            baseline_dec = baseline.withColumn("decile", b_decile)
-            b_overall = baseline.agg(F.mean(target_col).alias("m")).collect()[0]["m"]
-            b_top = baseline_dec.filter(F.col("decile") == 1).agg(F.mean(target_col).alias("m")).collect()[0]["m"]
-            baseline_value = (b_top / b_overall) if b_overall else 0.0
+            baseline_value = self._lift(baseline, score_col, target_col)
             if baseline_value != 0.0:
                 value = (baseline_value - current_lift) / baseline_value
             else:
@@ -134,36 +138,35 @@ class KSScoreTargetMetric(Metric):
     """Clase que representa KSScoreTargetMetric."""
     name = "ks_score_target"
 
+    def _ks(self, df: Any, score_col: Any, target_col: Any) -> float:
+        """Cálculo de KS en una sola pasada por cada clase."""
+        df0 = df.filter(F.col(target_col) == 0).select(score_col)
+        df1 = df.filter(F.col(target_col) == 1).select(score_col)
+        points = df0.union(df1).approxQuantile(score_col, [float(i) / 20 for i in range(21)], 0.01)
+        col = F.col(score_col)
+        c0_exprs = [F.sum(F.when(col <= p, 1).otherwise(0)).alias(f"c_{i}") for i, p in enumerate(points)]
+        c1_exprs = [F.sum(F.when(col <= p, 1).otherwise(0)).alias(f"c_{i}") for i, p in enumerate(points)]
+        c0_row = df0.agg(F.count(F.lit(1)).alias("n"), *c0_exprs).collect()[0]
+        c1_row = df1.agg(F.count(F.lit(1)).alias("n"), *c1_exprs).collect()[0]
+        n0 = c0_row["n"] or 1
+        n1 = c1_row["n"] or 1
+        ks = 1e-9
+        for i, p in enumerate(points):
+            f0 = (c0_row[f"c_{i}"] or 0) / n0
+            f1 = (c1_row[f"c_{i}"] or 0) / n1
+            ks = max(ks, abs(f0 - f1))
+        return float(ks)
+
     def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
         """Método que calcula."""
         score_col = params.get("score_col", "score")
         target_col = params.get("target_col", "target")
-        df0 = df.filter(F.col(target_col) == 0).select(score_col)
-        df1 = df.filter(F.col(target_col) == 1).select(score_col)
-        n0 = df0.count() or 1
-        n1 = df1.count() or 1
-        points = df0.union(df1).approxQuantile(score_col, [float(i) / 20 for i in range(21)], 0.01)
-        ks = 1e-9
-        for p in points:
-            f0 = df0.filter(F.col(score_col) <= p).count() / n0
-            f1 = df1.filter(F.col(score_col) <= p).count() / n1
-            ks = max(ks, abs(f0 - f1))
+        ks = self._ks(df, score_col, target_col)
         baseline_value = None
+        value = ks
         if baseline is not None:
-            b0 = baseline.filter(F.col(target_col) == 0).select(score_col)
-            b1 = baseline.filter(F.col(target_col) == 1).select(score_col)
-            bn0 = b0.count() or 1
-            bn1 = b1.count() or 1
-            ks_baseline = 1e-9
-            b_points = b0.union(b1).approxQuantile(score_col, [float(i) / 20 for i in range(21)], 0.01)
-            for p in b_points:
-                f0 = b0.filter(F.col(score_col) <= p).count() / bn0
-                f1 = b1.filter(F.col(score_col) <= p).count() / bn1
-                ks_baseline = max(ks_baseline, abs(f0 - f1))
-            baseline_value = ks_baseline
-            value = abs(ks - ks_baseline) / ks_baseline if ks_baseline else ks
-        else:
-            value = ks
+            baseline_value = self._ks(baseline, score_col, target_col)
+            value = abs(ks - baseline_value) / baseline_value if baseline_value else ks
         return self._make_result(value, baseline_value, thresholds, **params)
 
 

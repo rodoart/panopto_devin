@@ -19,3 +19,6 @@ dependencies:
       - "apache-airflow-providers-postgres"
       - "impyla"
       - "psycopg2-binary>=2.9"
+      - "streamlit>=1.30"
+      - "plotly>=5.18"
+      - "pandas>=1.5"

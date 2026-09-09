@@ -1,6 +1,6 @@
 """Módulo stability con las clases PSICanonicalMetric, PSIDynamicMetric, KSMetric, CorrelationDriftMetric y funciones _is_unbounded, _bin_condition, _psi_value, _psi_from_bins, _dynamic_numeric_bins, _dynamic_categorical_bins."""
 
-from typing import Any
+from typing import Any, List
 
 import math
 
@@ -54,19 +54,26 @@ def _psi_value(actual_props: Any, expected_props: Any, eps: float = 1e-6) -> Any
     return sum((a - e) * math.log((a + eps) / (e + eps)) for a, e in zip(actual_props, expected_props))
 
 
+def _bin_counts(df: Any, variable: Any, bins: Any) -> List[int]:
+    """Cuenta observaciones por bin en una sola pasada."""
+    exprs = [
+        F.sum(F.when(_bin_condition(df, variable, b), 1).otherwise(0)).alias(f"bin_{i}")
+        for i, b in enumerate(bins)
+    ]
+    row = df.agg(*exprs).collect()[0]
+    return [row[f"bin_{i}"] or 0 for i in range(len(bins))]
+
+
 def _psi_from_bins(df: Any, baseline: Any, variable: Any, bins: Any) -> Any:
     """Helper interno que realiza la operación "psi_from_bins"."""
-    actual_counts = [df.filter(_bin_condition(df, variable, b)).count() for b in bins]
+    actual_counts = _bin_counts(df, variable, bins)
     total_actual = sum(actual_counts) or 1
     actual_props = [c / total_actual for c in actual_counts]
-    expected_counts = []
-    for b in bins:
-        if "count_dev" in b:
-            expected_counts.append(b["count_dev"])
-        elif baseline is not None:
-            expected_counts.append(baseline.filter(_bin_condition(baseline, variable, b)).count())
-        else:
-            expected_counts.append(0)
+    baseline_counts = _bin_counts(baseline, variable, bins) if baseline is not None else [0] * len(bins)
+    expected_counts = [
+        b["count_dev"] if "count_dev" in b else baseline_counts[i]
+        for i, b in enumerate(bins)
+    ]
     total_expected = sum(expected_counts) or 1
     expected_props = [c / total_expected for c in expected_counts]
     return _psi_value(actual_props, expected_props)
@@ -153,10 +160,21 @@ class KSMetric(Metric):
         total_current = df.count() or 1
         total_baseline = baseline.count() or 1
         points = df.union(baseline).approxQuantile(variable, [float(i) / 20 for i in range(21)], 0.01)
+        col = F.col(variable)
+        c_exprs = [
+            F.sum(F.when(col <= p, 1).otherwise(0)).alias(f"c_{i}")
+            for i, p in enumerate(points)
+        ]
+        b_exprs = [
+            F.sum(F.when(col <= p, 1).otherwise(0)).alias(f"b_{i}")
+            for i, p in enumerate(points)
+        ]
+        c_row = df.agg(*c_exprs).collect()[0]
+        b_row = baseline.agg(*b_exprs).collect()[0]
         ks = 1e-9
-        for p in points:
-            fc = df.filter(F.col(variable) <= p).count() / total_current
-            fb = baseline.filter(F.col(variable) <= p).count() / total_baseline
+        for i, p in enumerate(points):
+            fc = (c_row[f"c_{i}"] or 0) / total_current
+            fb = (b_row[f"b_{i}"] or 0) / total_baseline
             ks = max(ks, abs(fc - fb))
         return self._make_result(ks, 0.0, thresholds, **params)
 

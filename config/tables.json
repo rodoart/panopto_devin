@@ -1,6 +1,7 @@
 {
   "model_summary_table": "model_summary_csi_psi_d_t_d",
   "variable_metadata_table": "variable_metadata_d_t_d",
+  "model_table_config_table": "mecv_model_table_config_d_t_d",
   "csi_psi_table": "csi_psi_table_d_t_d",
   "thresholds_table": "tresholds_table_d_t_d",
   "alert_policy_table": "alert_policy_d_t_d",

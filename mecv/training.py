@@ -8,6 +8,7 @@ from pyspark.sql import DataFrame, SparkSession, Window
 
 from mecv.binning import categorical_bins, compute_bin_counts, numeric_bins
 from mecv.checkpoint import Checkpoint
+from mecv.config.model_tables import ModelTableConfig, load_model_table_config_map
 from mecv.config.schemas import OutputSchemas
 from mecv.config.tables import PROCESS_CONFIG
 from mecv.data.reader import DataReader
@@ -27,57 +28,62 @@ class TrainingMode:
         self.reader = reader
         self.checkpoint = checkpoint or Checkpoint(spark)
         self.output_schemas = OutputSchemas()
+        self.model_table_configs: Dict[str, ModelTableConfig] = {}
+
+    def _latest_partition(self, table: str, model_id: str) -> DataFrame:
+        """Carga la última partición activa de una tabla para el modelo."""
+        table_df = self.spark.table(table)
+        max_row = table_df.filter(F.col("model_id") == model_id).agg(
+            F.max("process_date").alias("m")
+        ).collect()
+        if not max_row or max_row[0]["m"] is None:
+            return table_df.filter(F.lit(False))
+        max_pd = max_row[0]["m"]
+        return table_df.filter(
+            (F.col("model_id") == model_id) & (F.col("process_date") == max_pd)
+        )
 
     def _load_variable_metadata(self, model_id: str) -> List[Dict[str, Any]]:
         """Helper interno que carga variable metadata."""
-        table = PROCESS_CONFIG.variable_metadata_table
-        df = self.spark.sql(f"""
-            SELECT * FROM {table}
-            WHERE process_date = (
-                SELECT max(process_date) FROM {table} WHERE model_id = '{model_id}'
-            ) AND model_id = '{model_id}'
-        """)
-        return [r.asDict() for r in df.collect()]
+        return [r.asDict() for r in self._latest_partition(PROCESS_CONFIG.variable_metadata_table, model_id).collect()]
 
     def _load_category_policy(self, model_id: str) -> Dict[str, Dict[str, Any]]:
         """Helper interno que carga category policy."""
-        table = PROCESS_CONFIG.category_policy_table
-        df = self.spark.sql(f"""
-            SELECT * FROM {table}
-            WHERE process_date = (
-                SELECT max(process_date) FROM {table} WHERE model_id = '{model_id}'
-            ) AND model_id = '{model_id}'
-        """)
+        df = self._latest_partition(PROCESS_CONFIG.category_policy_table, model_id)
         return {r["variable"]: r.asDict() for r in df.collect()}
+
+    def _load_model_table_configs(self, model_id: str) -> Dict[str, ModelTableConfig]:
+        """Carga configuración a nivel tabla para el modelo."""
+        try:
+            return load_model_table_config_map(self.spark, model_id)
+        except Exception as exc:
+            logger.warning(f"could not load model table config for {model_id}: {exc}")
+            return {}
 
     def _read_dev_data(self, spec: DataSourceSpec, variable: str) -> DataFrame:
         """Helper interno que lee dev data."""
-        if spec.source_type == "HIVE":
-            full_table = f"{spec.schema}.{spec.table_or_path}" if spec.schema else spec.table_or_path
-            df = self.spark.table(full_table)
-        elif spec.source_type == "PARQUET":
-            df = self.spark.read.parquet(spec.table_or_path)
-        else:
-            raise ValueError(f"unsupported source_type: {spec.source_type}")
-        if spec.information_date_column and spec.information_date_column in df.columns:
-            max_date = df.agg(F.max(spec.information_date_column).alias("m")).collect()[0]["m"]
-            df = df.filter(F.col(spec.information_date_column) == max_date)
+        df = self.reader.read(spec, None)
         df = df.withColumnRenamed(spec.column, variable)
+        date_col = spec.date_column or spec.information_date_column
+        if date_col and date_col in df.columns:
+            max_date = df.agg(F.max(date_col).alias("m")).collect()[0]["m"]
+            if max_date is not None:
+                df = df.filter(F.col(date_col) == max_date)
         return df
 
     @staticmethod
-    def _null_rate(df: DataFrame, variable: str) -> float:
+    def _null_rate(df: DataFrame, variable: str, total: Optional[int] = None) -> float:
         """Helper interno que realiza la operación "null_rate"."""
-        total = df.count()
+        total = total if total is not None else df.count()
         if total == 0:
             return 0.0
         nulls = df.select(F.sum(F.when(F.col(variable).isNull(), 1).otherwise(0)).alias("n")).collect()[0]["n"]
         return (nulls or 0) / total
 
     @staticmethod
-    def _outlier_rate(df: DataFrame, variable: str) -> float:
+    def _outlier_rate(df: DataFrame, variable: str, total: Optional[int] = None) -> float:
         """Helper interno que realiza la operación "outlier_rate"."""
-        total = df.count()
+        total = total if total is not None else df.count()
         if total == 0:
             return 0.0
         row = df.select(
@@ -94,9 +100,9 @@ class TrainingMode:
         return outliers / total
 
     @staticmethod
-    def _entropy(df: DataFrame, variable: str) -> float:
+    def _entropy(df: DataFrame, variable: str, total: Optional[int] = None) -> float:
         """Helper interno que realiza la operación "entropy"."""
-        total = df.count()
+        total = total if total is not None else df.count()
         if total == 0:
             return 0.0
         bin_col = F.least(F.floor(F.col(variable) * 10), F.lit(9)).alias("bin")
@@ -119,7 +125,7 @@ class TrainingMode:
             "metric_name": "null_rate",
             "threshold_ambar": 0.05,
             "threshold_red": 0.10,
-            "baseline_value": self._null_rate(df, variable),
+            "baseline_value": self._null_rate(df, variable, sample_size),
             "baseline_std": 0.0,
             "sample_size_dev": sample_size,
             "calculation_method": "auto",
@@ -130,7 +136,7 @@ class TrainingMode:
                 "metric_name": "outlier_rate",
                 "threshold_ambar": 0.03,
                 "threshold_red": 0.06,
-                "baseline_value": self._outlier_rate(df, variable),
+                "baseline_value": self._outlier_rate(df, variable, sample_size),
                 "baseline_std": 0.0,
                 "sample_size_dev": sample_size,
                 "calculation_method": "auto",
@@ -161,7 +167,7 @@ class TrainingMode:
                 "metric_name": "entropy",
                 "threshold_ambar": 0.15,
                 "threshold_red": 0.30,
-                "baseline_value": self._entropy(df, variable),
+                "baseline_value": self._entropy(df, variable, sample_size),
                 "baseline_std": 0.0,
                 "sample_size_dev": sample_size,
                 "calculation_method": "auto",
@@ -192,6 +198,7 @@ class TrainingMode:
         logger.info(f"starting training for model {model_id}, process_date {process_date}")
         variables = self._load_variable_metadata(model_id)
         category_policy = self._load_category_policy(model_id)
+        self.model_table_configs = self._load_model_table_configs(model_id)
         writer = AtomicParquetWriter(self.spark)
         checkpoint_key = self._checkpoint_key(model_id, process_date, variables, category_policy)
         if (
@@ -216,11 +223,13 @@ class TrainingMode:
             var_type = var["var_type"]
             data_type = var["data_type"]
             info_col = var["information_date_column"]
+            table_config = self.model_table_configs.get(var["source_table"])
             spec = DataSourceSpec.from_metadata(
                 source_table=var["source_table"],
                 source_column=var["source_column"],
                 information_date_column=info_col,
                 partition_columns=var["partition_columns"],
+                table_config=table_config,
             )
             df = self._read_dev_data(spec, variable)
             sample_size = df.count()

@@ -29,8 +29,12 @@ class VariableSummaryBuilder:
             "information_date": information_date,
         }
 
-        total = df.count()
-        non_null = df.filter(F.col(variable).isNotNull()).count()
+        count_row = df.agg(
+            F.count(F.lit(1)).alias("total"),
+            F.count(F.col(variable)).alias("non_null"),
+        ).collect()[0]
+        total = count_row["total"] or 0
+        non_null = count_row["non_null"] or 0
         nulls = total - non_null
 
         rows.append({**base, "statistic": "count_total", "statistic_value": float(total), "statistic_value_str": str(total)})

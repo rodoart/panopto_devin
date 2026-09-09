@@ -27,10 +27,13 @@ class ScoreRangeMetric(Metric):
     def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
         """Método que calcula."""
         score_col = params.get("score_col", "score")
-        total = df.count()
-        violations = df.filter(
-            (F.col(score_col) < 0.0) | (F.col(score_col) > 1.0)
-        ).count()
+        col = F.col(score_col)
+        row = df.agg(
+            F.count(F.lit(1)).alias("total"),
+            F.sum(F.when((col < 0.0) | (col > 1.0), 1).otherwise(0)).alias("violations"),
+        ).collect()[0]
+        total = row["total"] or 0
+        violations = row["violations"] or 0
         value = (violations / total) if total else 0.0
         return self._make_result(value, None, thresholds, **params)
 
@@ -63,12 +66,22 @@ class ApprovalRateMetric(Metric):
         """Método que calcula."""
         score_col = params.get("score_col", "score")
         cutoff = params.get("cut_off_probability", 0.5)
-        total = df.count()
-        current_rate = df.filter(F.col(score_col) > cutoff).count() / total if total else 0.0
+        col = F.col(score_col)
+        row = df.agg(
+            F.count(F.lit(1)).alias("total"),
+            F.sum(F.when(col > cutoff, 1).otherwise(0)).alias("approved"),
+        ).collect()[0]
+        total = row["total"] or 0
+        current_rate = (row["approved"] or 0) / total if total else 0.0
         baseline_value = None
         if baseline is not None:
-            b_total = baseline.count()
-            baseline_value = baseline.filter(F.col(score_col) > cutoff).count() / b_total if b_total else 0.0
+            b_row = baseline.agg(
+                F.count(F.lit(1)).alias("total"),
+                F.sum(F.when(col > cutoff, 1).otherwise(0)).alias("approved"),
+            ).collect()[0]
+            b_total = b_row["total"] or 0
+            b_approved = b_row["approved"] or 0
+            baseline_value = b_approved / b_total if b_total else 0.0
             if baseline_value != 0.0:
                 value = abs(current_rate - baseline_value) / baseline_value
             else:
@@ -101,15 +114,16 @@ class ConcentrationGiniMetric(Metric):
 
     def _gini(self, df: Any, score_col: Any) -> Any:
         """Helper interno que realiza la operación "gini"."""
-        n = df.count()
-        if n < 2:
-            return 0.0
         df2 = df.withColumn("rk", F.row_number().over(Window.orderBy(F.col(score_col))))
         r = df2.agg(
+            F.count(F.lit(1)).alias("n"),
             F.sum(F.col(score_col) * F.col("rk")).alias("num"),
             F.sum(F.col(score_col)).alias("den"),
         ).collect()[0]
         if not r or r["den"] is None or r["den"] == 0:
+            return 0.0
+        n = r["n"]
+        if n < 2:
             return 0.0
         return (2.0 * r["num"] / (n * r["den"])) - ((n + 1.0) / n)
 

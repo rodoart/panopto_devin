@@ -38,12 +38,20 @@ def categorical_bins(df: DataFrame, variable: str, top_n: int = 50) -> List[Dict
 
 
 def compute_bin_counts(df: DataFrame, variable: str, bins: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Función que calcula bin counts."""
+    """Función que calcula bin counts en una sola pasada."""
     from mecv.metrics.stability import _bin_condition
-    total = df.count() or 1
-    for b in bins:
-        b["count_dev"] = df.filter(_bin_condition(df, variable, b)).count()
-        b["freq_dev"] = b["count_dev"] / total
+    import pyspark.sql.functions as F
+
+    exprs = [
+        F.sum(F.when(_bin_condition(df, variable, b), 1).otherwise(0)).alias(f"bin_{i}")
+        for i, b in enumerate(bins)
+    ]
+    row = df.agg(*exprs).collect()[0]
+    counts = [row[f"bin_{i}"] or 0 for i in range(len(bins))]
+    total = sum(counts) or 1
+    for i, b in enumerate(bins):
+        b["count_dev"] = counts[i]
+        b["freq_dev"] = counts[i] / total
     return bins
 
 

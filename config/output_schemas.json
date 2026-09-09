@@ -207,6 +207,25 @@
     {"name": "information_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
+  "mecv_model_table_config_d_t_d": [
+    {"name": "table_role", "type": "string", "nullable": true},
+    {"name": "table_name", "type": "string", "nullable": true},
+    {"name": "source_type", "type": "string", "nullable": true},
+    {"name": "source_schema", "type": "string", "nullable": true},
+    {"name": "source_table", "type": "string", "nullable": true},
+    {"name": "entity_key_columns", "type": "string", "nullable": true},
+    {"name": "canonical_key_columns", "type": "string", "nullable": true},
+    {"name": "date_column", "type": "string", "nullable": true},
+    {"name": "date_format", "type": "string", "nullable": true},
+    {"name": "history_months", "type": "int", "nullable": true},
+    {"name": "lag", "type": "int", "nullable": true},
+    {"name": "sql_transform", "type": "string", "nullable": true},
+    {"name": "data_type", "type": "string", "nullable": true},
+    {"name": "partition_columns", "type": "string", "nullable": true},
+    {"name": "active", "type": "boolean", "nullable": true},
+    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
+    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  ],
   "banamex_calendar_d_t_d": [
     {"name": "calendar_date", "type": "string", "nullable": true},
     {"name": "is_business_day", "type": "boolean", "nullable": true},

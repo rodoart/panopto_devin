@@ -10,6 +10,7 @@ from pyspark.sql import SparkSession
 
 from mecv.calendar import BanamexCalendar
 from mecv.checkpoint import Checkpoint
+from mecv.config.model_tables import ModelTableConfig, load_model_table_config_map
 from mecv.config.schemas import OutputSchemas
 from mecv.config.tables import PROCESS_CONFIG
 from mecv.data.reader import DataReader
@@ -93,10 +94,12 @@ class MetricRunner:
         self.spark = spark
         self.data_reader = data_reader
         self.join_keys = join_keys or ["customer_id"]
+        self.canonical_keys = join_keys or ["customer_id"]
         self.calendar = calendar or BanamexCalendar()
         self.checkpoint = checkpoint or Checkpoint(spark)
         self.output_schemas = OutputSchemas()
         self.summaries = []
+        self.model_table_configs: Dict[str, ModelTableConfig] = {}
 
     def run(
         self,
@@ -110,7 +113,15 @@ class MetricRunner:
         information_date = str(information_date)
         logger.info(f"running metrics for model {model_id}, information_date {information_date}")
         model_summary = self._load_model_summary(model_id)
-        checkpoint_key = self._checkpoint_key(model_id, information_date, baseline_date, model_summary)
+        self.model_table_configs = self._load_model_table_configs(model_id)
+        table_config_process_date = self._table_config_process_date()
+        checkpoint_key = self._checkpoint_key(
+            model_id,
+            information_date,
+            baseline_date,
+            model_summary,
+            table_config_process_date,
+        )
         if self.checkpoint.exists(checkpoint_key, "results") and self.checkpoint.exists(checkpoint_key, "summaries"):
             logger.info(f"metric results found in checkpoint for {model_id}/{information_date}; skipping computation")
             results = self._load_results_from_checkpoint(checkpoint_key, execution_id)
@@ -139,12 +150,16 @@ class MetricRunner:
             data_type = row["data_type"]
             reading_mode = str(row.get("reading_mode", "each"))
             info_col = row["information_date_column"]
+            table_config = self.model_table_configs.get(row["source_table"])
             spec = DataSourceSpec.from_metadata(
                 source_table=row["source_table"],
                 source_column=row["source_column"],
                 information_date_column=info_col,
                 partition_columns=row["partition_columns"],
+                table_config=table_config,
             )
+            if spec.canonical_keys and var_type == "score":
+                self.canonical_keys = list(spec.canonical_keys)
             current_dates, baseline_dates = self._resolve_dates(
                 information_date, baseline_date, reading_mode, frequency
             )
@@ -281,11 +296,13 @@ class MetricRunner:
         return results
 
     def _join_inputs(self, dfs: Any) -> Any:
-        """Helper interno que une inputs."""
+        """Helper interno que une inputs usando las llaves canónicas."""
         joined = dfs[0]
-        join_cols = [c for c in self.join_keys if c in joined.columns]
+        join_cols = [c for c in self.canonical_keys if c in joined.columns]
         for df in dfs[1:]:
             on = [c for c in join_cols if c in df.columns]
+            if not on:
+                raise MissingDataError("no common join keys between input tables")
             joined = joined.join(df, on=on, how="inner")
         return joined
 
@@ -335,20 +352,40 @@ class MetricRunner:
 
     def _latest_partition(self, table: str, model_id: str) -> Any:
         """Helper interno que realiza la operación "latest_partition"."""
-        return self.spark.sql(f"""
-            SELECT * FROM {table}
-            WHERE process_date = (
-                SELECT max(process_date) FROM {table} WHERE model_id = '{model_id}'
-            ) AND model_id = '{model_id}'
-        """)
+        table_df = self.spark.table(table)
+        max_row = table_df.filter(F.col("model_id") == model_id).agg(
+            F.max("process_date").alias("m")
+        ).collect()
+        if not max_row or max_row[0]["m"] is None:
+            return table_df.filter(F.lit(False))
+        max_pd = max_row[0]["m"]
+        return table_df.filter(
+            (F.col("model_id") == model_id) & (F.col("process_date") == max_pd)
+        )
+
+    def _load_model_table_configs(self, model_id: str) -> Dict[str, ModelTableConfig]:
+        """Carga configuración a nivel tabla para el modelo."""
+        try:
+            return load_model_table_config_map(self.spark, model_id)
+        except Exception as exc:
+            logger.warning(f"could not load model table config for {model_id}: {exc}")
+            return {}
+
+    def _table_config_process_date(self) -> str:
+        """Devuelve la última process_date disponible en la configuración de tablas."""
+        if not self.model_table_configs:
+            return ""
+        pds = [c.process_date for c in self.model_table_configs.values() if c.process_date]
+        return max(pds) if pds else ""
 
     def _read_data(self, spec: DataSourceSpec, variable: str, current_dates: List[str], baseline_dates: Optional[List[str]] = None) -> Tuple[Any, ...]:
         """Helper interno que lee data."""
-        current = self.data_reader.read(spec, current_dates, extra_cols=self.join_keys)
+        extra = self.canonical_keys if not spec.key_columns else None
+        current = self.data_reader.read(spec, current_dates, extra_cols=extra)
         current = current.withColumnRenamed(spec.column, variable)
         baseline = None
         if baseline_dates:
-            baseline = self.data_reader.read(spec, baseline_dates, extra_cols=self.join_keys)
+            baseline = self.data_reader.read(spec, baseline_dates, extra_cols=extra)
             baseline = baseline.withColumnRenamed(spec.column, variable)
         return current, baseline
 
@@ -454,8 +491,10 @@ class MetricRunner:
         return thresholds
 
     def _join_conjugate(self, score_df: Any, target_df: Any, score_col: Any, target_col: Any) -> Any:
-        """Helper interno que une conjugate."""
-        join_cols = [c for c in self.join_keys if c in score_df.columns and c in target_df.columns]
+        """Helper interno que une conjugate usando las llaves canónicas del modelo."""
+        join_cols = [c for c in self.canonical_keys if c in score_df.columns and c in target_df.columns]
+        if not join_cols:
+            raise MissingDataError("no common join keys between score and target")
         s = score_df.withColumnRenamed(score_col, "score")
         t = target_df.withColumnRenamed(target_col, "target")
         return s.join(t, on=join_cols, how="inner")
@@ -466,6 +505,7 @@ class MetricRunner:
         information_date: str,
         baseline_date: Optional[str],
         model_summary: Dict[str, Any],
+        table_config_process_date: str = "",
     ) -> Dict[str, Any]:
         """Construye la clave determinística del checkpoint para una corrida."""
         return {
@@ -474,6 +514,7 @@ class MetricRunner:
             "baseline_date": baseline_date or "auto",
             "frequency": str(model_summary.get("frequency", "daily")),
             "model_summary_process_date": str(model_summary.get("process_date", "")),
+            "table_config_process_date": table_config_process_date,
         }
 
     def _load_results_from_checkpoint(

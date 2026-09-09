@@ -338,3 +338,27 @@ FROM (
         AND a.information_date = e.information_date
 ) sub
 GROUP BY information_date, model_id;
+
+CREATE TABLE IF NOT EXISTS mecv_model_table_config_d_t_d (
+    table_role STRING,
+    table_name STRING,
+    source_type STRING,
+    source_schema STRING,
+    source_table STRING,
+    entity_key_columns STRING,
+    canonical_key_columns STRING,
+    date_column STRING,
+    date_format STRING,
+    history_months INT,
+    lag INT,
+    sql_transform STRING,
+    data_type STRING,
+    partition_columns STRING,
+    active BOOLEAN
+)
+PARTITIONED BY (process_date STRING, model_id STRING)
+STORED AS PARQUET
+TBLPROPERTIES (
+    'parquet.compress' = 'SNAPPY',
+    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
+);

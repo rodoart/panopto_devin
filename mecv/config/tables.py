@@ -13,6 +13,7 @@ class ProcessConfig:
 
     model_summary_table: str = "model_summary_csi_psi_d_t_d"
     variable_metadata_table: str = "variable_metadata_d_t_d"
+    model_table_config_table: str = "mecv_model_table_config_d_t_d"
     csi_psi_table: str = "csi_psi_table_d_t_d"
     thresholds_table: str = "tresholds_table_d_t_d"
     alert_policy_table: str = "alert_policy_d_t_d"
