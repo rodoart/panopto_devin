@@ -2,7 +2,7 @@
 
 import pytest
 
-from mecv.data.sources import DataSourceSpec
+from panopto.data.sources import DataSourceSpec
 
 
 def test_hive_table_with_schema():

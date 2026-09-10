@@ -1,4 +1,4 @@
-"""Shared pytest configuration and fixtures for MECV tests."""
+"""Shared pytest configuration and fixtures for PANOPTO tests."""
 
 import datetime as dt
 import os
@@ -7,33 +7,33 @@ from typing import Any, Dict, List, Optional
 
 import pytest
 
-# Set safe MECV_* defaults *before* importing any mecv modules, so tests can run
+# Set safe PANOPTO_* defaults *before* importing any panopto modules, so tests can run
 # in a local sandbox without a real Hive metastore or Postgres instance.
-os.environ.setdefault("MECV_ENV", "test")
-os.environ.setdefault("MECV_HIVE_METASTORE_URIS", "")
-os.environ.setdefault("MECV_HIVE_WAREHOUSE_DIR", "/tmp/mecv_test_warehouse")
-os.environ.setdefault("MECV_HIVE_DATABASE", "default")
-os.environ.setdefault("MECV_POSTGRES_HOST", "localhost")
-os.environ.setdefault("MECV_POSTGRES_PORT", "5432")
-os.environ.setdefault("MECV_POSTGRES_DB", "mecv_test")
-os.environ.setdefault("MECV_POSTGRES_USER", "mecv_test")
-os.environ.setdefault("MECV_POSTGRES_PASSWORD", "mecv_test")
-os.environ.setdefault("MECV_SMTP_HOST", "localhost")
-os.environ.setdefault("MECV_SMTP_PORT", "25")
-os.environ.setdefault("MECV_SMTP_USER", "test@example.com")
-os.environ.setdefault("MECV_SMTP_PASSWORD", "test")
-os.environ.setdefault("MECV_HDFS_STAGING_BASE", "/tmp/mecv_test_staging")
-os.environ.setdefault("MECV_CHECKPOINT_BASE", "/tmp/mecv_test_checkpoints")
-os.environ.setdefault("MECV_DISABLE_EMAILS", "true")
+os.environ.setdefault("PANOPTO_ENV", "test")
+os.environ.setdefault("PANOPTO_HIVE_METASTORE_URIS", "")
+os.environ.setdefault("PANOPTO_HIVE_WAREHOUSE_DIR", "/tmp/panopto_test_warehouse")
+os.environ.setdefault("PANOPTO_HIVE_DATABASE", "default")
+os.environ.setdefault("PANOPTO_POSTGRES_HOST", "localhost")
+os.environ.setdefault("PANOPTO_POSTGRES_PORT", "5432")
+os.environ.setdefault("PANOPTO_POSTGRES_DB", "panopto_test")
+os.environ.setdefault("PANOPTO_POSTGRES_USER", "panopto_test")
+os.environ.setdefault("PANOPTO_POSTGRES_PASSWORD", "panopto_test")
+os.environ.setdefault("PANOPTO_SMTP_HOST", "localhost")
+os.environ.setdefault("PANOPTO_SMTP_PORT", "25")
+os.environ.setdefault("PANOPTO_SMTP_USER", "test@example.com")
+os.environ.setdefault("PANOPTO_SMTP_PASSWORD", "test")
+os.environ.setdefault("PANOPTO_HDFS_STAGING_BASE", "/tmp/panopto_test_staging")
+os.environ.setdefault("PANOPTO_CHECKPOINT_BASE", "/tmp/panopto_test_checkpoints")
+os.environ.setdefault("PANOPTO_DISABLE_EMAILS", "true")
 os.environ.setdefault(
-    "MECV_EMAIL_CONFIG_PATH",
+    "PANOPTO_EMAIL_CONFIG_PATH",
     os.path.join(os.path.dirname(__file__), "..", "config", "email_config.json"),
 )
 
-# Import mecv modules now that the environment is configured.  Importing
-# mecv.metrics registers all metric subclasses.
-from mecv.sessions import PostgresSession, SparkSessionBuilder  # noqa: E402
-import mecv.metrics  # noqa: E402
+# Import panopto modules now that the environment is configured.  Importing
+# panopto.metrics registers all metric subclasses.
+from panopto.sessions import PostgresSession, SparkSessionBuilder  # noqa: E402
+import panopto.metrics  # noqa: E402
 
 from pyspark.sql import Row, SparkSession  # noqa: E402
 import pyspark.sql.functions as F  # noqa: E402
@@ -43,11 +43,11 @@ import pyspark.sql.functions as F  # noqa: E402
 def spark() -> SparkSession:
     """Build a local SparkSession for the whole test session."""
     import shutil
-    checkpoint_base = os.environ.get("MECV_CHECKPOINT_BASE", "/tmp/mecv_test_checkpoints")
+    checkpoint_base = os.environ.get("PANOPTO_CHECKPOINT_BASE", "/tmp/panopto_test_checkpoints")
     if os.path.isdir(checkpoint_base):
         shutil.rmtree(checkpoint_base, ignore_errors=True)
     builder = SparkSessionBuilder(
-        app_name="mecv-tests",
+        app_name="panopto-tests",
         extra_conf={
             "spark.sql.shuffle.partitions": "2",
             "spark.sql.adaptive.enabled": "false",
@@ -145,7 +145,7 @@ class FakePostgres:
 def postgres_connection(monkeypatch) -> FakePostgres:
     """Patch ``psycopg2.connect`` so :class:`PostgresSession` returns a fake cursor."""
     fake = FakePostgres()
-    monkeypatch.setattr("mecv.sessions.psycopg2.connect", fake.connect)
+    monkeypatch.setattr("panopto.sessions.psycopg2.connect", fake.connect)
     yield fake
 
 
@@ -287,6 +287,6 @@ def sample_data(spark: SparkSession) -> Dict[str, Any]:
 @pytest.fixture
 def checkpoint(spark: SparkSession, tmp_path):
     """Return a per-test Checkpoint instance backed by a temporary directory."""
-    from mecv.checkpoint import Checkpoint
+    from panopto.checkpoint import Checkpoint
     base = str(tmp_path / "checkpoints")
     return Checkpoint(spark, base)

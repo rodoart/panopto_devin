@@ -13,8 +13,8 @@ from typing import Any, Dict, List
 
 from pyspark.sql import SparkSession
 
-from mecv.config.tables import PROCESS_CONFIG
-from mecv.sessions import PostgresSession, SparkSessionBuilder
+from panopto.config.tables import PROCESS_CONFIG
+from panopto.sessions import PostgresSession, SparkSessionBuilder
 
 MODEL: Dict[str, Any] = {
     "model_id": "nuevo_modelo",
@@ -158,7 +158,7 @@ def insert_hive(spark: SparkSession) -> None:
     spark.createDataFrame(summary_rows).write.insertInto(PROCESS_CONFIG.model_summary_table, overwrite=False)
     print(f"inserted {len(summary_rows)} row(s) into {PROCESS_CONFIG.model_summary_table}")
 
-    # mecv_model_table_config_d_t_d
+    # panopto_model_table_config_d_t_d
     table_rows = []
     for t in MODEL["tables"]:
         table_rows.append({
@@ -229,10 +229,10 @@ def insert_postgres() -> None:
 
 
 def main() -> None:
-    spark = SparkSessionBuilder(app_name="mecv-onboarding").build()
+    spark = SparkSessionBuilder(app_name="panopto-onboarding").build()
     insert_hive(spark)
     insert_postgres()
-    print("Onboarding completado. Ejecute mecv_config_watcher para entrenar el modelo.")
+    print("Onboarding completado. Ejecute panopto_config_watcher para entrenar el modelo.")
 
 
 if __name__ == "__main__":

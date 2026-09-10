@@ -2,9 +2,9 @@
 
 import pytest
 
-from mecv.binning import numeric_bins
-from mecv.metrics.result import MetricResult
-from mecv.metrics.score import (
+from panopto.binning import numeric_bins
+from panopto.metrics.result import MetricResult
+from panopto.metrics.score import (
     ApprovalRateMetric,
     ConcentrationGiniMetric,
     EntropyMetric,

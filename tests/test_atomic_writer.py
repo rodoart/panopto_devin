@@ -4,8 +4,8 @@ import os
 
 import pytest
 
-from mecv.config.tables import PROCESS_CONFIG
-from mecv.io.atomic_parquet_writer import AtomicParquetWriter
+from panopto.config.tables import PROCESS_CONFIG
+from panopto.io.atomic_parquet_writer import AtomicParquetWriter
 
 
 def test_atomic_writer_smoke(spark, tmp_path, monkeypatch):

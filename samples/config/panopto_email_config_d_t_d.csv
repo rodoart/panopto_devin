@@ -1,0 +1,2 @@
+process_date,model_id,sender_name,sender_email,reply_to,subject_prefix,logo_url,active
+2025-10-15,global,PANOPTO Alertas,alerts@example.com,noreply@example.com,[PANOPTO],,true

@@ -156,7 +156,7 @@ TBLPROPERTIES (
     'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
 );
 
-CREATE TABLE IF NOT EXISTS mecv_staging_control_d_t_d (
+CREATE TABLE IF NOT EXISTS panopto_staging_control_d_t_d (
     staging_id STRING,
     execution_id STRING,
     model_id STRING,
@@ -178,7 +178,7 @@ TBLPROPERTIES (
     'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
 );
 
-CREATE TABLE IF NOT EXISTS mecv_metric_result_d_t_d (
+CREATE TABLE IF NOT EXISTS panopto_metric_result_d_t_d (
     execution_id STRING,
     variable STRING,
     var_type STRING,
@@ -200,7 +200,7 @@ TBLPROPERTIES (
     'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
 );
 
-CREATE TABLE IF NOT EXISTS mecv_alert_aggregate_d_t_d (
+CREATE TABLE IF NOT EXISTS panopto_alert_aggregate_d_t_d (
     execution_id STRING,
     var_type STRING,
     total_metrics INT,
@@ -223,7 +223,7 @@ TBLPROPERTIES (
     'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
 );
 
-CREATE TABLE IF NOT EXISTS mecv_execution_log_d_t_d (
+CREATE TABLE IF NOT EXISTS panopto_execution_log_d_t_d (
     execution_id STRING,
     dag_id STRING,
     airflow_run_id STRING,
@@ -246,7 +246,7 @@ TBLPROPERTIES (
     'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
 );
 
-CREATE TABLE IF NOT EXISTS mecv_email_log_d_t_d (
+CREATE TABLE IF NOT EXISTS panopto_email_log_d_t_d (
     email_id STRING,
     execution_id STRING,
     alert_type STRING,
@@ -266,7 +266,7 @@ TBLPROPERTIES (
     'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
 );
 
-CREATE TABLE IF NOT EXISTS mecv_variable_summary_d_t_d (
+CREATE TABLE IF NOT EXISTS panopto_variable_summary_d_t_d (
     execution_id STRING,
     variable STRING,
     var_type STRING,
@@ -294,7 +294,7 @@ TBLPROPERTIES (
     'parquet.compress' = 'SNAPPY'
 );
 
-CREATE OR REPLACE VIEW mecv_dashboard_semaphore AS
+CREATE OR REPLACE VIEW panopto_dashboard_semaphore AS
 SELECT
     m.information_date,
     m.model_id,
@@ -306,15 +306,15 @@ SELECT
     a.stress_ratio,
     e.status AS execution_status,
     e.variables_missing
-FROM mecv_metric_result_d_t_d m
-LEFT JOIN mecv_alert_aggregate_d_t_d a
+FROM panopto_metric_result_d_t_d m
+LEFT JOIN panopto_alert_aggregate_d_t_d a
     ON m.model_id = a.model_id
     AND m.information_date = a.information_date
-LEFT JOIN mecv_execution_log_d_t_d e
+LEFT JOIN panopto_execution_log_d_t_d e
     ON m.model_id = e.model_id
     AND m.information_date = e.information_date;
 
-CREATE OR REPLACE VIEW mecv_dashboard_model_summary AS
+CREATE OR REPLACE VIEW panopto_dashboard_model_summary AS
 SELECT
     information_date,
     model_id,
@@ -332,14 +332,14 @@ FROM (
         a.var_type,
         a.aggregate_status,
         e.status AS execution_status
-    FROM mecv_alert_aggregate_d_t_d a
-    LEFT JOIN mecv_execution_log_d_t_d e
+    FROM panopto_alert_aggregate_d_t_d a
+    LEFT JOIN panopto_execution_log_d_t_d e
         ON a.model_id = e.model_id
         AND a.information_date = e.information_date
 ) sub
 GROUP BY information_date, model_id;
 
-CREATE TABLE IF NOT EXISTS mecv_model_table_config_d_t_d (
+CREATE TABLE IF NOT EXISTS panopto_model_table_config_d_t_d (
     table_role STRING,
     table_name STRING,
     source_type STRING,

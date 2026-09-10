@@ -1,0 +1,212 @@
+"""Módulo stability con las clases PSICanonicalMetric, PSIDynamicMetric, KSMetric, CorrelationDriftMetric y funciones _is_unbounded, _bin_condition, _psi_value, _psi_from_bins, _dynamic_numeric_bins, _dynamic_categorical_bins."""
+
+from typing import Any, List
+
+import math
+
+import pyspark.sql.functions as F
+
+from panopto.metrics.base import Metric, MetricRegistry
+
+
+def _is_unbounded(value: Any) -> bool:
+    """Helper interno que realiza la operación "is_unbounded"."""
+    if value is None:
+        return True
+    s = str(value).lower()
+    return s in ("-inf", "inf", "infinity", "-infinity")
+
+
+def _bin_condition(df: Any, variable: Any, b: Any) -> Any:
+    """Helper interno que agrupa en bins condition."""
+    bin_type = b.get("bin_type", "NUMERIC")
+    if bin_type == "CATEGORICAL":
+        return df[variable] == b["category_value"]
+    col = F.col(variable)
+    cond = F.lit(True)
+    lb = b.get("lb")
+    ub = b.get("ub")
+    lbt = b.get("lower_bound_type", ">")
+    ubt = b.get("upper_bound_type", "<=")
+    if not _is_unbounded(lb):
+        if lbt == ">":
+            cond = cond & (col > lb)
+        elif lbt == ">=":
+            cond = cond & (col >= lb)
+        elif lbt == "<":
+            cond = cond & (col < lb)
+        elif lbt == "<=":
+            cond = cond & (col <= lb)
+    if not _is_unbounded(ub):
+        if ubt == "<":
+            cond = cond & (col < ub)
+        elif ubt == "<=":
+            cond = cond & (col <= ub)
+        elif ubt == ">":
+            cond = cond & (col > ub)
+        elif ubt == ">=":
+            cond = cond & (col >= ub)
+    return cond
+
+
+def _psi_value(actual_props: Any, expected_props: Any, eps: float = 1e-6) -> Any:
+    """Helper interno que realiza la operación "psi_value"."""
+    return sum((a - e) * math.log((a + eps) / (e + eps)) for a, e in zip(actual_props, expected_props))
+
+
+def _bin_counts(df: Any, variable: Any, bins: Any) -> List[int]:
+    """Cuenta observaciones por bin en una sola pasada."""
+    exprs = [
+        F.sum(F.when(_bin_condition(df, variable, b), 1).otherwise(0)).alias(f"bin_{i}")
+        for i, b in enumerate(bins)
+    ]
+    row = df.agg(*exprs).collect()[0]
+    return [row[f"bin_{i}"] or 0 for i in range(len(bins))]
+
+
+def _psi_from_bins(df: Any, baseline: Any, variable: Any, bins: Any) -> Any:
+    """Helper interno que realiza la operación "psi_from_bins"."""
+    actual_counts = _bin_counts(df, variable, bins)
+    total_actual = sum(actual_counts) or 1
+    actual_props = [c / total_actual for c in actual_counts]
+    baseline_counts = _bin_counts(baseline, variable, bins) if baseline is not None else [0] * len(bins)
+    expected_counts = [
+        b["count_dev"] if "count_dev" in b else baseline_counts[i]
+        for i, b in enumerate(bins)
+    ]
+    total_expected = sum(expected_counts) or 1
+    expected_props = [c / total_expected for c in expected_counts]
+    return _psi_value(actual_props, expected_props)
+
+
+def _dynamic_numeric_bins(baseline: Any, variable: Any, n_bins: Any) -> Any:
+    """Helper interno que realiza la operación "dynamic_numeric_bins"."""
+    edges = baseline.approxQuantile(variable, [float(i) / n_bins for i in range(1, n_bins)], 0.01)
+    edges = [float("-inf")] + edges + [float("inf")]
+    bins = []
+    for i in range(len(edges) - 1):
+        bins.append({
+            "lb": edges[i],
+            "ub": edges[i + 1],
+            "lower_bound_type": ">",
+            "upper_bound_type": "<=",
+            "bin_type": "NUMERIC",
+        })
+    return bins
+
+
+def _dynamic_categorical_bins(baseline: Any, variable: Any, n_bins: Any) -> Any:
+    """Helper interno que realiza la operación "dynamic_categorical_bins"."""
+    rows = baseline.groupBy(F.col(variable)).count().orderBy(F.desc("count")).limit(n_bins).collect()
+    bins = []
+    for r in rows:
+        bins.append({
+            "category_value": r[variable],
+            "bin_type": "CATEGORICAL",
+            "count_dev": r["count"],
+        })
+    return bins
+
+
+class PSICanonicalMetric(Metric):
+    """Clase que representa PSICanonicalMetric."""
+    name = "psi_canonical"
+
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
+        variable = params["variable"]
+        bins = params.get("bins", [])
+        if not bins and baseline is not None:
+            n_bins = params.get("n_bins", 10)
+            data_type = params.get("data_type", "numeric")
+            bins = (
+                _dynamic_categorical_bins(baseline, variable, n_bins)
+                if data_type == "categorical"
+                else _dynamic_numeric_bins(baseline, variable, n_bins)
+            )
+        value = _psi_from_bins(df, baseline, variable, bins)
+        return self._make_result(value, 0.0, thresholds, **params)
+
+
+class PSIDynamicMetric(Metric):
+    """Clase que representa PSIDynamicMetric."""
+    name = "psi_dynamic"
+
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
+        if baseline is None:
+            raise ValueError("psi_dynamic requires a baseline dataframe")
+        variable = params["variable"]
+        n_bins = params.get("n_bins", 10)
+        data_type = params.get("data_type", "numeric")
+        bins = (
+            _dynamic_categorical_bins(baseline, variable, n_bins)
+            if data_type == "categorical"
+            else _dynamic_numeric_bins(baseline, variable, n_bins)
+        )
+        value = _psi_from_bins(df, baseline, variable, bins)
+        return self._make_result(value, 0.0, thresholds, **params)
+
+
+class KSMetric(Metric):
+    """Clase que representa KSMetric."""
+    name = "ks_vs_dev"
+
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
+        if baseline is None:
+            raise ValueError("ks_vs_dev requires a baseline dataframe")
+        variable = params["variable"]
+        total_current = df.count() or 1
+        total_baseline = baseline.count() or 1
+        points = df.union(baseline).approxQuantile(variable, [float(i) / 20 for i in range(21)], 0.01)
+        col = F.col(variable)
+        c_exprs = [
+            F.sum(F.when(col <= p, 1).otherwise(0)).alias(f"c_{i}")
+            for i, p in enumerate(points)
+        ]
+        b_exprs = [
+            F.sum(F.when(col <= p, 1).otherwise(0)).alias(f"b_{i}")
+            for i, p in enumerate(points)
+        ]
+        c_row = df.agg(*c_exprs).collect()[0]
+        b_row = baseline.agg(*b_exprs).collect()[0]
+        ks = 1e-9
+        for i, p in enumerate(points):
+            fc = (c_row[f"c_{i}"] or 0) / total_current
+            fb = (b_row[f"b_{i}"] or 0) / total_baseline
+            ks = max(ks, abs(fc - fb))
+        return self._make_result(ks, 0.0, thresholds, **params)
+
+
+class CorrelationDriftMetric(Metric):
+    """Clase que representa CorrelationDriftMetric."""
+    name = "correlation_drift"
+
+    def _max_abs_corr(self, df: Any) -> Any:
+        """Helper interno que realiza la operación "max_abs_corr"."""
+        cols = [c for c, t in df.dtypes if t in ("double", "float", "int", "bigint", "long", "short", "tinyint")]
+        maximum = 1e-9
+        for i in range(len(cols)):
+            for j in range(i + 1, len(cols)):
+                c = df.stat.corr(cols[i], cols[j])
+                if c is not None:
+                    maximum = max(maximum, abs(c))
+        return maximum
+
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
+        current = self._max_abs_corr(df)
+        baseline_value = None
+        if baseline is not None:
+            baseline_value = self._max_abs_corr(baseline)
+            value = abs(current - baseline_value)
+        else:
+            value = current
+        return self._make_result(value, baseline_value, thresholds, **params)
+
+
+MetricRegistry.register(PSICanonicalMetric)
+MetricRegistry.register(PSIDynamicMetric)
+MetricRegistry.register(KSMetric)
+MetricRegistry.register(CorrelationDriftMetric)

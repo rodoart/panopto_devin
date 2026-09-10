@@ -1,6 +1,6 @@
 # panopto_devin
 
-Módulo de pruebas de estabilidad y calidad de variables (MECV) para modelos en producción.
+Módulo de pruebas de estabilidad y calidad de variables (PANOPTO) para modelos en producción.
 
 ## Instalación
 
@@ -15,31 +15,31 @@ cp .env.example .env
 
 | Tablas | Motor |
 |--------|-------|
-| Configuración (`model_summary_csi_psi_d_t_d`, `mecv_model_table_config_d_t_d`, `csi_psi_table_d_t_d`, `tresholds_table_d_t_d`, `alert_policy_d_t_d`, `category_policy_d_t_d`, `variable_metadata_d_t_d`) | Hive / Parquet |
+| Configuración (`model_summary_csi_psi_d_t_d`, `panopto_model_table_config_d_t_d`, `csi_psi_table_d_t_d`, `tresholds_table_d_t_d`, `alert_policy_d_t_d`, `category_policy_d_t_d`, `variable_metadata_d_t_d`) | Hive / Parquet |
 | Calendario (`banamex_calendar_d_t_d`) | Hive / Parquet |
-| Estado y resultados (`config_changelog_d_t_d`, `category_baseline_rank_d_t_d`, `metric_threshold_auto_d_t_d`, `mecv_metric_result_d_t_d`, `mecv_alert_aggregate_d_t_d`, `mecv_execution_log_d_t_d`, `mecv_email_log_d_t_d`, `mecv_staging_control_d_t_d`, `mecv_variable_summary_d_t_d`) | Hive / Parquet |
+| Estado y resultados (`config_changelog_d_t_d`, `category_baseline_rank_d_t_d`, `metric_threshold_auto_d_t_d`, `panopto_metric_result_d_t_d`, `panopto_alert_aggregate_d_t_d`, `panopto_execution_log_d_t_d`, `panopto_email_log_d_t_d`, `panopto_staging_control_d_t_d`, `panopto_variable_summary_d_t_d`) | Hive / Parquet |
 | Calendario (`banamex_calendar_sync_d`) | PostgreSQL |
 | Contactos (`model_contact_d_t_d`) | PostgreSQL |
 | Lista roja global (`red_alert_list_d`) | PostgreSQL |
 
-Los nombres y rutas anteriores se centralizan en `config/tables.json` y se exponen a través de `mecv.config.tables.ProcessConfig`. Para usarlos:
+Los nombres y rutas anteriores se centralizan en `config/tables.json` y se exponen a través de `panopto.config.tables.ProcessConfig`. Para usarlos:
 
 ```python
-from mecv.config.tables import PROCESS_CONFIG
+from panopto.config.tables import PROCESS_CONFIG
 
 table = PROCESS_CONFIG.metric_result_table
 staging = PROCESS_CONFIG.hdfs_staging_base
 ```
 
-`ProcessConfig.from_json()` lee `config/tables.json` y permite sobrescribir `hdfs_staging_base` y `hive_warehouse_dir` mediante las variables de entorno `MECV_HDFS_STAGING_BASE` y `MECV_HIVE_WAREHOUSE_DIR`.
+`ProcessConfig.from_json()` lee `config/tables.json` y permite sobrescribir `hdfs_staging_base` y `hive_warehouse_dir` mediante las variables de entorno `PANOPTO_HDFS_STAGING_BASE` y `PANOPTO_HIVE_WAREHOUSE_DIR`.
 
 ## Esquemas de tablas de salida
 
-Los esquemas de todas las tablas de salida se centralizan en `config/output_schemas.json` y se exponen a través de `mecv.config.schemas.OutputSchemas`:
+Los esquemas de todas las tablas de salida se centralizan en `config/output_schemas.json` y se exponen a través de `panopto.config.schemas.OutputSchemas`:
 
 ```python
-from mecv.config.schemas import OutputSchemas
-from mecv.config.tables import PROCESS_CONFIG
+from panopto.config.schemas import OutputSchemas
+from panopto.config.tables import PROCESS_CONFIG
 
 schema = OutputSchemas().get(PROCESS_CONFIG.metric_result_table)
 df = spark.createDataFrame(rows, schema=schema)
@@ -49,7 +49,7 @@ Esto evita definir `StructType` o columnas hardcodeadas en el código de negocio
 
 ## Configuración de tablas fuente por modelo
 
-Toda la configuración de las tablas `score`, `target`, `raw`, `input` y `processed` vive en Hive, en `mecv_model_table_config_d_t_d`. Ahí se define por modelo:
+Toda la configuración de las tablas `score`, `target`, `raw`, `input` y `processed` vive en Hive, en `panopto_model_table_config_d_t_d`. Ahí se define por modelo:
 
 - `table_role`: rol de la tabla (`score`, `target`, `raw`, `input`, `processed`).
 - `source_table`: referencia URI (`hive:schema.tabla` o `parquet:/ruta`).
@@ -70,24 +70,24 @@ process_date,model_id,table_role,table_name,source_type,source_schema,source_tab
 2025-10-15,1079_cta_lvl,target,target_1079,HIVE,gcprmsbx_work,hive:gcprmsbx_work.target_1079,"[""num_cliente""]","[""customer_id""]",information_date,,6,1,"TRIM(num_cliente) AS num_cliente",,[],true
 ```
 
-El CSV de ejemplo completo está en `samples/config/mecv_model_table_config_d_t_d.csv`.
+El CSV de ejemplo completo está en `samples/config/panopto_model_table_config_d_t_d.csv`.
 
 ## Muestras
 
 Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejemplo para el modelo `1079_cta_lvl` con fecha de proceso `2025-10-15`.
 
-## Paquete `mecv`
+## Paquete `panopto`
 
-- `mecv.config`: carga de variables de entorno y esquemas de tablas de salida (`mecv.config.schemas.OutputSchemas`).
-- `mecv.sessions`: constructores de `SparkSession` y conexión a PostgreSQL.
-- `mecv.calendar`: `BanamexCalendar` para días hábiles y fechas esperadas de información.
-- `mecv.logging`: configuración de logging (`mecv.logging.get_logger`) con `MECV_LOG_LEVEL`.
-- `mecv.checkpoint`: persistencia temporal de DataFrames en parquet para evitar recomputar en reejecuciones.
-- `mecv.data.sources` y `mecv.data.reader`: lectura de fuentes `hive:` y `parquet:` a partir de `variable_metadata`.
-- `mecv.binning`: bines canónicos, categóricos y cálculo de WoE.
-- `mecv.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`. También usa `mecv.checkpoint.Checkpoint` para no recomputar bins, umbrales y rankings si ya existen artefactos para el modelo y `process_date`.
-- `mecv.metrics`: motor de métricas con `MetricRegistry` y métricas de calidad, estabilidad, score y conjugadas.
-- `mecv.alerts`: agregador de alertas (`AlertAggregator`), constructor HTML de emails (`EmailBuilder`) y despachador (`EmailDispatcher`).
+- `panopto.config`: carga de variables de entorno y esquemas de tablas de salida (`panopto.config.schemas.OutputSchemas`).
+- `panopto.sessions`: constructores de `SparkSession` y conexión a PostgreSQL.
+- `panopto.calendar`: `BanamexCalendar` para días hábiles y fechas esperadas de información.
+- `panopto.logging`: configuración de logging (`panopto.logging.get_logger`) con `PANOPTO_LOG_LEVEL`.
+- `panopto.checkpoint`: persistencia temporal de DataFrames en parquet para evitar recomputar en reejecuciones.
+- `panopto.data.sources` y `panopto.data.reader`: lectura de fuentes `hive:` y `parquet:` a partir de `variable_metadata`.
+- `panopto.binning`: bines canónicos, categóricos y cálculo de WoE.
+- `panopto.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`. También usa `panopto.checkpoint.Checkpoint` para no recomputar bins, umbrales y rankings si ya existen artefactos para el modelo y `process_date`.
+- `panopto.metrics`: motor de métricas con `MetricRegistry` y métricas de calidad, estabilidad, score y conjugadas.
+- `panopto.alerts`: agregador de alertas (`AlertAggregator`), constructor HTML de emails (`EmailBuilder`) y despachador (`EmailDispatcher`).
 
 ## Estructura de `source_table`
 
@@ -98,12 +98,12 @@ El campo `source_table` de `variable_metadata_d_t_d` usa un prefijo URI:
 
 ## Credenciales
 
-Todas las credenciales se leen desde variables de entorno (`mecv.config.Settings.from_env()`). No deben hardcodearse.
+Todas las credenciales se leen desde variables de entorno (`panopto.config.Settings.from_env()`). No deben hardcodearse.
 
 ## Motor de métricas
 
 ```python
-from mecv.metrics.registry import MetricRegistry
+from panopto.metrics.registry import MetricRegistry
 
 MetricCls = MetricRegistry.get("null_rate")
 result = MetricCls().calculate(
@@ -122,14 +122,14 @@ print(result)
 
 Métricas registradas actualmente: `null_rate`, `cardinality_ratio`, `outlier_rate`, `dominant_category_rate`, `category_composition_drift`, `psi_canonical`, `psi_dynamic`, `ks_vs_dev`, `correlation_drift`, `range_violation`, `entropy`, `approval_rate`, `tail_shift`, `concentration_gini`, `psi_approved`, `psi_rejected`, `auc`, `gini`, `brier_score`, `lift_top_decile`, `event_rate`, `psi_target`, `calibration_slope`, `ks_score_target`.
 
-`mecv_variable_summary_d_t_d` guarda estadísticos descriptivos por variable: `count_total`, `count_non_null`, `count_null`, `min`, `max`, `mean`, `std`, deciles (`p10` ... `p90`) para numéricas; `distinct_count`, `top_category`, `top_category_count` para categóricas.
+`panopto_variable_summary_d_t_d` guarda estadísticos descriptivos por variable: `count_total`, `count_non_null`, `count_null`, `min`, `max`, `mean`, `std`, deciles (`p10` ... `p90`) para numéricas; `distinct_count`, `top_category`, `top_category_count` para categóricas.
 
 ## MetricRunner
 
 ```python
-from mecv.sessions import SparkSessionBuilder
-from mecv.data.reader import DataReader
-from mecv.metrics.runner import MetricRunner
+from panopto.sessions import SparkSessionBuilder
+from panopto.data.reader import DataReader
+from panopto.metrics.runner import MetricRunner
 
 spark = SparkSessionBuilder().build()
 reader = DataReader(spark)
@@ -148,12 +148,12 @@ for r in results:
 
 `MetricRunner` lee `variable_metadata`, `model_summary`, `csi_psi_table`, `tresholds_table`, `metric_threshold_auto` y `category_policy` (última partición), ejecuta las métricas correspondientes por tipo de variable y, si existen `score` y `target`, genera las métricas conjugadas (`auc`, `gini`, `brier_score`, `lift_top_decile`).
 
-`MetricRunner` almacena resultados y resúmenes en parquet temporal usando `mecv.checkpoint.Checkpoint`. Si ya existe un checkpoint válido para la combinación `model_id` + `information_date` + `baseline_date` + `frequency`, la segunda ejecución lee del parquet y no vuelve a computar. La ruta base se configura con `MECV_CHECKPOINT_BASE` (por defecto `<MECV_HDFS_STAGING_BASE>/mecv_checkpoints`). Esto es útil en clústeres con recursos limitados o cuando se coordinan reejecuciones de pruebas.
+`MetricRunner` almacena resultados y resúmenes en parquet temporal usando `panopto.checkpoint.Checkpoint`. Si ya existe un checkpoint válido para la combinación `model_id` + `information_date` + `baseline_date` + `frequency`, la segunda ejecución lee del parquet y no vuelve a computar. La ruta base se configura con `PANOPTO_CHECKPOINT_BASE` (por defecto `<PANOPTO_HDFS_STAGING_BASE>/panopto_checkpoints`). Esto es útil en clústeres con recursos limitados o cuando se coordinan reejecuciones de pruebas.
 
 ```python
-from mecv.checkpoint import Checkpoint
+from panopto.checkpoint import Checkpoint
 
-checkpoint = Checkpoint(spark, base_path="/tmp/mecv/checkpoints")
+checkpoint = Checkpoint(spark, base_path="/tmp/panopto/checkpoints")
 runner = MetricRunner(spark, reader, join_keys=["customer_id"], checkpoint=checkpoint)
 ```
 
@@ -170,16 +170,16 @@ El remitente se configura en `config/email_config.json` (usa `config/email_confi
 
 ```json
 {
-  "sender_name": "MECV Alertas",
+  "sender_name": "PANOPTO Alertas",
   "sender_email": "alerts@example.com",
   "reply_to": "noreply@example.com",
-  "subject_prefix": "[MECV]"
+  "subject_prefix": "[PANOPTO]"
 }
 ```
 
 ```python
-from mecv.alerts.aggregator import AlertAggregator
-from mecv.alerts.dispatcher import EmailDispatcher
+from panopto.alerts.aggregator import AlertAggregator
+from panopto.alerts.dispatcher import EmailDispatcher
 
 aggregator = AlertAggregator()
 aggregate_alerts = aggregator.aggregate(results)
@@ -199,7 +199,7 @@ print(log)
 
 `EmailDispatcher` lee `model_contact_d_t_d` y `red_alert_list_d` desde PostgreSQL, arma un email HTML con `EmailBuilder` y lo envía por SMTP usando las credenciales de `.env`.
 
-Para desactivar completamente el envío de correos (por ejemplo, en entornos de prueba o cuando el clúster está inestable), define `MECV_DISABLE_EMAILS=true`. En ese caso `dispatch` retorna inmediatamente un `EmailLog` con `status=DISABLED` sin intentar la conexión SMTP.
+Para desactivar completamente el envío de correos (por ejemplo, en entornos de prueba o cuando el clúster está inestable), define `PANOPTO_DISABLE_EMAILS=true`. En ese caso `dispatch` retorna inmediatamente un `EmailLog` con `status=DISABLED` sin intentar la conexión SMTP.
 
 ## DAGs de Airflow
 
@@ -207,21 +207,21 @@ Los DAGs están en `dags/`:
 
 | DAG | Frecuencia | Propósito |
 |-----|------------|-----------|
-| `mecv_config_watcher` | Cada 30 min | Sincroniza calendario Hive → Postgres, detecta nuevos modelos y ejecuta `TrainingMode` para calcular bins y umbrales. |
-| `mecv_production_runner` | Diaria | Ejecuta `MetricRunner` usando `BanamexCalendar`, persiste resultados/alertas/logs y dispara `mecv_alert_dispatcher`. |
-| `mecv_alert_dispatcher` | Diaria | Genera agregados, arma emails HTML y despacha notificaciones; soporta alertas `MISSING_DATA`. |
-| `mecv_output_validator` | Diaria | Valida que existan datos del día en `mecv_metric_result` y `mecv_alert_aggregate`; placeholder para refresco de Tableau. |
-| `mecv_orphan_cleanup` | Semanal | Elimina directorios HDFS de `/tmp/mecv_staging` con más de 7 días. |
-| `mecv_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d` hasta 7 días, convierte a `banamex_calendar_d_t_d` y sincroniza a `banamex_calendar_sync_d`. Si se agota el tiempo, pausa los DAGs `mecv_*` sin enviar correos. |
+| `panopto_config_watcher` | Cada 30 min | Sincroniza calendario Hive → Postgres, detecta nuevos modelos y ejecuta `TrainingMode` para calcular bins y umbrales. |
+| `panopto_production_runner` | Diaria | Ejecuta `MetricRunner` usando `BanamexCalendar`, persiste resultados/alertas/logs y dispara `panopto_alert_dispatcher`. |
+| `panopto_alert_dispatcher` | Diaria | Genera agregados, arma emails HTML y despacha notificaciones; soporta alertas `MISSING_DATA`. |
+| `panopto_output_validator` | Diaria | Valida que existan datos del día en `panopto_metric_result` y `panopto_alert_aggregate`; placeholder para refresco de Tableau. |
+| `panopto_orphan_cleanup` | Semanal | Elimina directorios HDFS de `/tmp/panopto_staging` con más de 7 días. |
+| `panopto_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d` hasta 7 días, convierte a `banamex_calendar_d_t_d` y sincroniza a `banamex_calendar_sync_d`. Si se agota el tiempo, pausa los DAGs `panopto_*` sin enviar correos. |
 
-Todos los DAGs tienen `email_on_failure=False` y `email_on_retry=False` para evitar enviar correos por fallas transitorias del clúster, y `retries` elevado para reintentar automáticamente hasta alcanzar el éxito. Las excepciones genéricas en `mecv_production_runner`, `mecv_alert_dispatcher` y `mecv_config_watcher` se propagan para que Airflow reactive la tarea, mientras que `MissingDataError` se registra y continúa con el siguiente modelo.
+Todos los DAGs tienen `email_on_failure=False` y `email_on_retry=False` para evitar enviar correos por fallas transitorias del clúster, y `retries` elevado para reintentar automáticamente hasta alcanzar el éxito. Las excepciones genéricas en `panopto_production_runner`, `panopto_alert_dispatcher` y `panopto_config_watcher` se propagan para que Airflow reactive la tarea, mientras que `MissingDataError` se registra y continúa con el siguiente modelo.
 
 ## Logging
 
-`mecv/logging.py` configura `logging` del paquete con formato `[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s`. El nivel se controla con `MECV_LOG_LEVEL` (default `INFO`). En Airflow los logs se escriben a `stdout` y se capturan en los logs de tareas.
+`panopto/logging.py` configura `logging` del paquete con formato `[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s`. El nivel se controla con `PANOPTO_LOG_LEVEL` (default `INFO`). En Airflow los logs se escriben a `stdout` y se capturan en los logs de tareas.
 
 ```python
-from mecv.logging import get_logger
+from panopto.logging import get_logger
 
 logger = get_logger(__name__)
 logger.info("mensaje informativo")
@@ -237,7 +237,7 @@ pip install -e ".[dev]"
 python3 -m pytest tests/ -q
 ```
 
-El directorio `tests/` contiene un suite de pruebas unitarias con fixtures compartidas (`spark`, `postgres_connection`, `sample_data`, `checkpoint`). El fixture `checkpoint` devuelve una instancia de `mecv.checkpoint.Checkpoint` apuntando a un directorio temporal, lo que permite verificar que las corridas de `MetricRunner` se reutilizan en reejecuciones. Algunos tests dependen de un entorno local con PySpark; si el runtime de Spark/HDFS no está disponible, al menos ejecuta `python3 -m py_compile tests/**/*.py` para validar la sintaxis.
+El directorio `tests/` contiene un suite de pruebas unitarias con fixtures compartidas (`spark`, `postgres_connection`, `sample_data`, `checkpoint`). El fixture `checkpoint` devuelve una instancia de `panopto.checkpoint.Checkpoint` apuntando a un directorio temporal, lo que permite verificar que las corridas de `MetricRunner` se reutilizan en reejecuciones. Algunos tests dependen de un entorno local con PySpark; si el runtime de Spark/HDFS no está disponible, al menos ejecuta `python3 -m py_compile tests/**/*.py` para validar la sintaxis.
 
 ## Agregar un nuevo modelo
 
@@ -254,18 +254,18 @@ Luego ejecuta:
 python scripts/onboard_model.py
 ```
 
-Esto inserta las filas en `mecv_model_table_config_d_t_d`, `variable_metadata_d_t_d`, `model_summary_csi_psi_d_t_d` (Hive) y `model_contact_d_t_d` (PostgreSQL). Después el DAG `mecv_config_watcher` calcula bins, rankings y umbrales automáticos en el próximo ciclo.
+Esto inserta las filas en `panopto_model_table_config_d_t_d`, `variable_metadata_d_t_d`, `model_summary_csi_psi_d_t_d` (Hive) y `model_contact_d_t_d` (PostgreSQL). Después el DAG `panopto_config_watcher` calcula bins, rankings y umbrales automáticos en el próximo ciclo.
 
 ## Tabla de motores: Hive vs PostgreSQL
 
 | Motor | Tablas |
 |-------|--------|
-| **Hive / Parquet** | `mecv_model_table_config_d_t_d`, `model_summary_csi_psi_d_t_d`, `variable_metadata_d_t_d`, `tresholds_table_d_t_d`, `category_policy_d_t_d`, `alert_policy_d_t_d`, `csi_psi_table_d_t_d`, `category_baseline_rank_d_t_d`, `metric_threshold_auto_d_t_d`, `mecv_metric_result_d_t_d`, `mecv_alert_aggregate_d_t_d`, `mecv_execution_log_d_t_d`, `mecv_email_log_d_t_d`, `mecv_variable_summary_d_t_d`, `mecv_staging_control_d_t_d`, `banamex_calendar_d_t_d`, `config_changelog_d_t_d` |
+| **Hive / Parquet** | `panopto_model_table_config_d_t_d`, `model_summary_csi_psi_d_t_d`, `variable_metadata_d_t_d`, `tresholds_table_d_t_d`, `category_policy_d_t_d`, `alert_policy_d_t_d`, `csi_psi_table_d_t_d`, `category_baseline_rank_d_t_d`, `metric_threshold_auto_d_t_d`, `panopto_metric_result_d_t_d`, `panopto_alert_aggregate_d_t_d`, `panopto_execution_log_d_t_d`, `panopto_email_log_d_t_d`, `panopto_variable_summary_d_t_d`, `panopto_staging_control_d_t_d`, `banamex_calendar_d_t_d`, `config_changelog_d_t_d` |
 | **PostgreSQL** | `banamex_calendar_sync_d`, `model_contact_d_t_d`, `red_alert_list_d` |
 
 ## Umbrales para score y target no binarias
 
-La tabla `mecv_metric_result_d_t_d` no depende de que `target` sea binario. Las métricas de calidad (`null_rate`, `outlier_rate`, `psi_canonical`, etc.) y las de score (`entropy`, `concentration_gini`, `tail_shift`, etc.) se calculan sobre la distribución propia de la variable.
+La tabla `panopto_metric_result_d_t_d` no depende de que `target` sea binario. Las métricas de calidad (`null_rate`, `outlier_rate`, `psi_canonical`, etc.) y las de score (`entropy`, `concentration_gini`, `tail_shift`, etc.) se calculan sobre la distribución propia de la variable.
 
 Cuando `target` es binaria, las métricas conjugadas (`auc`, `gini`, `brier_score`, `lift_top_decile`, `event_rate`, `ks_score_target`, `calibration_slope`) son directas:
 
@@ -278,13 +278,27 @@ Para targets continuas, el campo `model_type` en `model_summary_csi_psi_d_t_d` d
 
 ## Dashboard con Streamlit
 
-El tablero consume las vistas `mecv_dashboard_semaphore` y `mecv_dashboard_model_summary` y se ejecuta con Streamlit. Es accesible directamente desde el navegador sin Tableau.
+El tablero consume las vistas `panopto_dashboard_semaphore` y `panopto_dashboard_model_summary` y se ejecuta con Streamlit. Es accesible directamente desde el navegador sin Tableau.
 
 ```bash
-streamlit run mecv/dashboard/app.py
+streamlit run panopto/dashboard/app.py
 ```
 
 Se abre en `http://localhost:8501`.
+
+## Restructuración de tablas de configuración
+
+La configuración se divide ahora en dos tablas principales:
+
+- **`panopto_model_table_config_d_t_d`**: toda la configuración a nivel tabla (conexión, llaves, `partition_columns`, `reading_mode`, `history_months`, `lag`, `sql_transform`, `date_column`, `date_format`).
+- **`variable_metadata_d_t_d`**: solo atributos de la variable (`variable`, `var_type`, `data_type`, `source_table`, `source_column`, `is_monotonic`). La relación con la tabla se hace por `source_table`.
+
+La configuración de correo también vive en Hive: **`panopto_email_config_d_t_d`** (`model_id=global` para remitente global). `EmailDispatcher` primero lee Hive y, si no hay fila, cae a `PANOPTO_EMAIL_CONFIG_PATH` (JSON).
+
+Ver documentación detallada en:
+
+- `notebook/panopto_tablas.md` — campos, tipos y ejemplos de cada tabla.
+- `notebook/panopto_metricas.md` — catálogo completo de métricas.
 
 ### Contenido
 
@@ -298,5 +312,5 @@ Se abre en `http://localhost:8501`.
 
 ### Estructura
 
-- `mecv/dashboard/data.py`: conexión a Spark y lectura de las vistas.
-- `mecv/dashboard/app.py`: aplicación Streamlit con Plotly.
+- `panopto/dashboard/data.py`: conexión a Spark y lectura de las vistas.
+- `panopto/dashboard/app.py`: aplicación Streamlit con Plotly.

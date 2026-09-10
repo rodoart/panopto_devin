@@ -3,7 +3,7 @@ requires = ["setuptools>=61.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mecv"
+name = "panopto"
 version = "0.1.0"
 description = "Módulo de pruebas de estabilidad y calidad de variables"
 requires-python = ">=3.9"
@@ -21,4 +21,4 @@ pythonpath = ["."]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["mecv*"]
+include = ["panopto*"]

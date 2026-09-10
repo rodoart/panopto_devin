@@ -2,7 +2,7 @@
 
 import datetime as dt
 
-from mecv.calendar import BanamexCalendar
+from panopto.calendar import BanamexCalendar
 
 
 def test_is_business_day(postgres_connection):

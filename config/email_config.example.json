@@ -1,7 +1,7 @@
 {
-  "sender_name": "MECV Alertas",
+  "sender_name": "PANOPTO Alertas",
   "sender_email": "alerts@example.com",
   "reply_to": "noreply@example.com",
-  "subject_prefix": "[MECV]",
+  "subject_prefix": "[PANOPTO]",
   "logo_url": ""
 }

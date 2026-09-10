@@ -2,10 +2,10 @@
 
 import json
 
-from mecv.alerts.aggregator import AggregateAlert, AlertAggregator
-from mecv.alerts.dispatcher import EmailDispatcher
-from mecv.alerts.email_builder import EmailBuilder
-from mecv.metrics.result import MetricResult
+from panopto.alerts.aggregator import AggregateAlert, AlertAggregator
+from panopto.alerts.dispatcher import EmailDispatcher
+from panopto.alerts.email_builder import EmailBuilder
+from panopto.metrics.result import MetricResult
 
 
 def test_alert_aggregator_counts_statuses():
@@ -73,9 +73,9 @@ def test_email_dispatcher_build_recipients_red_and_missing(tmp_path, postgres_co
     config_path = tmp_path / "email_config.json"
     config_path.write_text(
         json.dumps({
-            "sender_name": "MECV",
+            "sender_name": "PANOPTO",
             "sender_email": "alerts@example.com",
-            "subject_prefix": "[MECV]",
+            "subject_prefix": "[PANOPTO]",
         })
     )
 
@@ -105,9 +105,9 @@ def test_email_dispatcher_build_recipients_red_and_missing(tmp_path, postgres_co
 def test_email_builder_builds_html():
     """EmailBuilder produces a valid HTML body containing model metadata."""
     config = {
-        "sender_name": "MECV",
+        "sender_name": "PANOPTO",
         "sender_email": "alerts@example.com",
-        "subject_prefix": "[MECV]",
+        "subject_prefix": "[PANOPTO]",
     }
     builder = EmailBuilder(config)
     html = builder.build_html(

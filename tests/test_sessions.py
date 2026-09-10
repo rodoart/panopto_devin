@@ -2,14 +2,14 @@
 
 from pyspark.sql import SparkSession
 
-from mecv.sessions import PostgresSession, SparkSessionBuilder
+from panopto.sessions import PostgresSession, SparkSessionBuilder
 
 
 def test_spark_session_builder_returns_spark_session(spark: SparkSession):
     """``SparkSessionBuilder.build()`` returns a SparkSession."""
     assert isinstance(spark, SparkSession)
     # The fixture already builds the session with the test app name.
-    assert "mecv-tests" in spark.sparkContext.appName
+    assert "panopto-tests" in spark.sparkContext.appName
 
 
 def test_spark_session_builder_uses_config(spark: SparkSession):
@@ -27,6 +27,6 @@ def test_postgres_session_uses_expected_credentials(postgres_connection):
     assert kwargs is not None
     assert kwargs["host"] == "localhost"
     assert kwargs["port"] == "5432"
-    assert kwargs["dbname"] == "mecv_test"
-    assert kwargs["user"] == "mecv_test"
-    assert kwargs["password"] == "mecv_test"
+    assert kwargs["dbname"] == "panopto_test"
+    assert kwargs["user"] == "panopto_test"
+    assert kwargs["password"] == "panopto_test"

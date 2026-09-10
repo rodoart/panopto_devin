@@ -2,7 +2,7 @@
 
 import pytest
 
-from mecv.metrics.conjugate import (
+from panopto.metrics.conjugate import (
     AUCMetric,
     BrierScoreMetric,
     CalibrationSlopeMetric,
@@ -10,7 +10,7 @@ from mecv.metrics.conjugate import (
     KSScoreTargetMetric,
     LiftTopDecileMetric,
 )
-from mecv.metrics.result import MetricResult
+from panopto.metrics.result import MetricResult
 
 
 def _params():

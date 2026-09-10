@@ -3,7 +3,7 @@
 import pyspark.sql.functions as F
 import pytest
 
-from mecv.binning import categorical_bins, compute_bin_counts, compute_woe, numeric_bins
+from panopto.binning import categorical_bins, compute_bin_counts, compute_woe, numeric_bins
 
 
 def test_numeric_bins_shape_and_bounds(spark, sample_data):

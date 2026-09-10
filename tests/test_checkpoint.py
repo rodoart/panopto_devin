@@ -1,6 +1,6 @@
-"""Tests for mecv.checkpoint."""
+"""Tests for panopto.checkpoint."""
 
-from mecv.checkpoint import Checkpoint
+from panopto.checkpoint import Checkpoint
 
 
 def test_checkpoint_compute_and_reuse(spark, tmp_path):

@@ -1,8 +1,8 @@
 """Tests for TrainingMode binning and threshold generation."""
 
-from mecv.config.tables import PROCESS_CONFIG
-from mecv.data.reader import DataReader
-from mecv.training import TrainingMode
+from panopto.config.tables import PROCESS_CONFIG
+from panopto.data.reader import DataReader
+from panopto.training import TrainingMode
 
 
 def _create_training_tables(spark, sample_data, model_id="M1"):
@@ -83,7 +83,7 @@ def test_training_run_writes_binned_data(spark, sample_data, monkeypatch):
     """run() returns True and writes CSI bins, category ranks and metric thresholds."""
     _create_training_tables(spark, sample_data)
     FakeAtomicWriter.instances.clear()
-    monkeypatch.setattr("mecv.training.AtomicParquetWriter", FakeAtomicWriter)
+    monkeypatch.setattr("panopto.training.AtomicParquetWriter", FakeAtomicWriter)
 
     trainer = TrainingMode(spark, DataReader(spark))
     result = trainer.run("M1", "2025-01-01", "exec_001")

@@ -2,8 +2,8 @@
 
 import pytest
 
-from mecv.metrics.result import MetricResult
-from mecv.metrics.stability import KSMetric, PSICanonicalMetric, PSIDynamicMetric
+from panopto.metrics.result import MetricResult
+from panopto.metrics.stability import KSMetric, PSICanonicalMetric, PSIDynamicMetric
 
 
 def _params(variable: str, data_type: str = "numeric"):

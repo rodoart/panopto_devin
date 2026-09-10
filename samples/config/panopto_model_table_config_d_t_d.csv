@@ -1,0 +1,6 @@
+process_date,model_id,table_role,table_name,source_type,source_schema,source_table,entity_key_columns,canonical_key_columns,date_column,date_format,history_months,lag,sql_transform,data_type,partition_columns,reading_mode,active
+2025-10-15,1079_cta_lvl,raw,raw_1079,HIVE,gcprmsbx_work,hive:gcprmsbx_work.raw_1079,"[""customer_id""]","[""customer_id""]",information_date,,3,0,"TRIM(customer_id) AS customer_id",,[],each,true
+2025-10-15,1079_cta_lvl,input,input_1079,HIVE,gcprmsbx_work,hive:gcprmsbx_work.input_1079,"[""customer_id""]","[""customer_id""]",information_date,,5,0,,,[],each,true
+2025-10-15,1079_cta_lvl,processed,transformed_1079,HIVE,gcprmsbx_work,hive:gcprmsbx_work.transformed_1079,"[""customer_id""]","[""customer_id""]",information_date,,3,0,,,[],each,true
+2025-10-15,1079_cta_lvl,score,score_1079,PARQUET,,parquet:/data/parquets/score_1079,"[""customer_id""]","[""customer_id""]",information_date,,3,0,,,[],each,true
+2025-10-15,1079_cta_lvl,target,target_1079,HIVE,gcprmsbx_work,hive:gcprmsbx_work.target_1079,"[""num_cliente""]","[""customer_id""]",information_date,,6,1,"TRIM(num_cliente) AS num_cliente",,[],each,true

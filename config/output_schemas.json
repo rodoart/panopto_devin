@@ -62,17 +62,12 @@
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
   "variable_metadata_d_t_d": [
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "var_type", "type": "string", "nullable": true},
-    {"name": "data_type", "type": "string", "nullable": true},
-    {"name": "source_type", "type": "string", "nullable": true},
-    {"name": "source_schema", "type": "string", "nullable": true},
-    {"name": "source_table", "type": "string", "nullable": true},
-    {"name": "source_column", "type": "string", "nullable": true},
-    {"name": "information_date_column", "type": "string", "nullable": true},
-    {"name": "partition_columns", "type": "string", "nullable": true},
-    {"name": "is_monotonic", "type": "boolean", "nullable": true},
-    {"name": "reading_mode", "type": "string", "nullable": true},
+    {"name": "variable", "type": "string", "nullable": true, "description": "Nombre de la variable"},
+    {"name": "var_type", "type": "string", "nullable": true, "description": "Rol: raw, input, transformed, score, target"},
+    {"name": "data_type", "type": "string", "nullable": true, "description": "numeric o categorical"},
+    {"name": "source_table", "type": "string", "nullable": true, "description": "Nombre de tabla en table metadata (clave cruzada)"},
+    {"name": "source_column", "type": "string", "nullable": true, "description": "Columna física en la tabla fuente"},
+    {"name": "is_monotonic", "type": "boolean", "nullable": true, "description": "True si la variable es monótona"},
     {"name": "process_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
@@ -112,7 +107,7 @@
     {"name": "process_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
-  "mecv_staging_control_d_t_d": [
+  "panopto_staging_control_d_t_d": [
     {"name": "staging_id", "type": "string", "nullable": true},
     {"name": "execution_id", "type": "string", "nullable": true},
     {"name": "model_id", "type": "string", "nullable": true},
@@ -128,7 +123,7 @@
     {"name": "promoted_at", "type": "timestamp", "nullable": true},
     {"name": "process_date", "type": "string", "nullable": true, "partition": true}
   ],
-  "mecv_metric_result_d_t_d": [
+  "panopto_metric_result_d_t_d": [
     {"name": "execution_id", "type": "string", "nullable": true},
     {"name": "variable", "type": "string", "nullable": true},
     {"name": "var_type", "type": "string", "nullable": true},
@@ -145,7 +140,7 @@
     {"name": "information_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
-  "mecv_alert_aggregate_d_t_d": [
+  "panopto_alert_aggregate_d_t_d": [
     {"name": "execution_id", "type": "string", "nullable": true},
     {"name": "var_type", "type": "string", "nullable": true},
     {"name": "total_metrics", "type": "int", "nullable": true},
@@ -163,7 +158,7 @@
     {"name": "information_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
-  "mecv_execution_log_d_t_d": [
+  "panopto_execution_log_d_t_d": [
     {"name": "execution_id", "type": "string", "nullable": true},
     {"name": "dag_id", "type": "string", "nullable": true},
     {"name": "airflow_run_id", "type": "string", "nullable": true},
@@ -181,7 +176,7 @@
     {"name": "information_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
-  "mecv_email_log_d_t_d": [
+  "panopto_email_log_d_t_d": [
     {"name": "email_id", "type": "string", "nullable": true},
     {"name": "execution_id", "type": "string", "nullable": true},
     {"name": "alert_type", "type": "string", "nullable": true},
@@ -196,7 +191,7 @@
     {"name": "information_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
-  "mecv_variable_summary_d_t_d": [
+  "panopto_variable_summary_d_t_d": [
     {"name": "execution_id", "type": "string", "nullable": true},
     {"name": "variable", "type": "string", "nullable": true},
     {"name": "var_type", "type": "string", "nullable": true},
@@ -207,22 +202,33 @@
     {"name": "information_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],
-  "mecv_model_table_config_d_t_d": [
-    {"name": "table_role", "type": "string", "nullable": true},
-    {"name": "table_name", "type": "string", "nullable": true},
-    {"name": "source_type", "type": "string", "nullable": true},
-    {"name": "source_schema", "type": "string", "nullable": true},
-    {"name": "source_table", "type": "string", "nullable": true},
-    {"name": "entity_key_columns", "type": "string", "nullable": true},
-    {"name": "canonical_key_columns", "type": "string", "nullable": true},
-    {"name": "date_column", "type": "string", "nullable": true},
-    {"name": "date_format", "type": "string", "nullable": true},
-    {"name": "history_months", "type": "int", "nullable": true},
-    {"name": "lag", "type": "int", "nullable": true},
-    {"name": "sql_transform", "type": "string", "nullable": true},
-    {"name": "data_type", "type": "string", "nullable": true},
-    {"name": "partition_columns", "type": "string", "nullable": true},
-    {"name": "active", "type": "boolean", "nullable": true},
+  "panopto_model_table_config_d_t_d": [
+    {"name": "table_role", "type": "string", "nullable": true, "description": "Rol: raw, input, processed, score, target"},
+    {"name": "table_name", "type": "string", "nullable": true, "description": "Alias corto de la tabla"},
+    {"name": "source_type", "type": "string", "nullable": true, "description": "HIVE o PARQUET"},
+    {"name": "source_schema", "type": "string", "nullable": true, "description": "Esquema Hive o None"},
+    {"name": "source_table", "type": "string", "nullable": true, "description": "Nombre físico con prefijo hive: o parquet:"},
+    {"name": "entity_key_columns", "type": "string", "nullable": true, "description": "JSON con llaves de la fuente"},
+    {"name": "canonical_key_columns", "type": "string", "nullable": true, "description": "JSON con llaves unificadas"},
+    {"name": "date_column", "type": "string", "nullable": true, "description": "Columna de fecha de información"},
+    {"name": "date_format", "type": "string", "nullable": true, "description": "Formato strptime de la fecha, ej. %Y-%m-%d"},
+    {"name": "history_months", "type": "int", "nullable": true, "description": "Ventana histórica para baseline"},
+    {"name": "lag", "type": "int", "nullable": true, "description": "Meses de lag del baseline"},
+    {"name": "sql_transform", "type": "string", "nullable": true, "description": "Transformación SQL a aplicar en selectExpr"},
+    {"name": "data_type", "type": "string", "nullable": true, "description": "numeric o categorical"},
+    {"name": "partition_columns", "type": "string", "nullable": true, "description": "JSON con columnas de partición"},
+    {"name": "reading_mode", "type": "string", "nullable": true, "description": "each, first o last"},
+    {"name": "active", "type": "boolean", "nullable": true, "description": "True si la configuración está activa"},
+    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
+    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  ],
+  "panopto_email_config_d_t_d": [
+    {"name": "sender_name", "type": "string", "nullable": true, "description": "Nombre del remitente"},
+    {"name": "sender_email", "type": "string", "nullable": true, "description": "Dirección del remitente"},
+    {"name": "reply_to", "type": "string", "nullable": true, "description": "Reply-To"},
+    {"name": "subject_prefix", "type": "string", "nullable": true, "description": "Prefijo del asunto"},
+    {"name": "logo_url", "type": "string", "nullable": true, "description": "URL del logo"},
+    {"name": "active", "type": "boolean", "nullable": true, "description": "True si la config está activa"},
     {"name": "process_date", "type": "string", "nullable": true, "partition": true},
     {"name": "model_id", "type": "string", "nullable": true, "partition": true}
   ],

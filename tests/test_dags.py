@@ -7,22 +7,22 @@ from pathlib import Path
 import pytest
 
 DAG_FILES = [
-    ("mecv_config_watcher", 4),
-    ("mecv_production_runner", 2),
-    ("mecv_alert_dispatcher", 2),
-    ("mecv_output_validator", 3),
-    ("mecv_orphan_cleanup", 1),
-    ("mecv_calendar_loader", 3),
+    ("panopto_config_watcher", 4),
+    ("panopto_production_runner", 2),
+    ("panopto_alert_dispatcher", 2),
+    ("panopto_output_validator", 3),
+    ("panopto_orphan_cleanup", 1),
+    ("panopto_calendar_loader", 3),
 ]
 
 
 def _load_dag_module(name: str):
-    """Load a DAG module from dags/<name>.py without requiring an __init__.py."""
+    """Load a DAG module from panopto/dags/<name>.py without requiring an __init__.py."""
     root = Path(__file__).resolve().parents[1]
-    path = root / "dags" / f"{name}.py"
+    path = root / "panopto" / "dags" / f"{name}.py"
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
-    # Ensure the repo root is on the path so the module can import ``mecv``.
+    # Ensure the repo root is on the path so the module can import ``panopto``.
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
     spec.loader.exec_module(module)

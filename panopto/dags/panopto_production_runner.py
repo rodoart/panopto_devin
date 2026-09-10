@@ -1,0 +1,222 @@
+"""DAG de Airflow panopto_production_runner; expone las funciones run_production."""
+
+from typing import Any
+
+from datetime import datetime, timedelta
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
+from panopto.config.tables import PROCESS_CONFIG
+from panopto.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+def run_production(**context: Any) -> None:
+    """Función que ejecuta production."""
+    from datetime import datetime as dt
+    from panopto.alerts.aggregator import AlertAggregator
+    from panopto.calendar import BanamexCalendar
+    from panopto.data.reader import DataReader
+    from panopto.config.schemas import OutputSchemas
+    from panopto.io.atomic_parquet_writer import AtomicParquetWriter
+    from panopto.metrics.runner import MetricRunner, MissingDataError
+    from panopto.sessions import PostgresSession, SparkSessionBuilder
+
+    spark = SparkSessionBuilder(app_name="panopto_production_runner").build()
+    schemas = OutputSchemas()
+    reader = DataReader(spark)
+    psql = PostgresSession()
+    writer = AtomicParquetWriter(spark)
+    aggregator = AlertAggregator()
+    calendar = BanamexCalendar()
+    today = dt.now().date()
+    today_str = today.strftime("%Y-%m-%d")
+    execution_id = context["run_id"]
+    logger.info(f"starting production run for {today_str}")
+    dag_id = context["dag"]["dag_id"]
+
+    calendar_sync_table = PROCESS_CONFIG.banamex_calendar_sync_table
+    with psql.connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT is_business_day FROM {calendar_sync_table} WHERE calendar_date = %s", (today,))
+            row = cur.fetchone()
+            is_business = row[0] if row else True
+
+    model_summary_table = PROCESS_CONFIG.model_summary_table
+    model_summary = spark.sql(f"""
+        SELECT * FROM {model_summary_table}
+        WHERE process_date = (SELECT max(process_date) FROM {model_summary_table})
+          AND status = 'active'
+    """)
+    models = [r.asDict() for r in model_summary.collect()]
+
+    for model in models:
+        model_id = str(model["model_id"])
+        frequency = model.get("frequency", "daily")
+        information_date = calendar.expected_information_date(frequency, today)
+        logger.info(f"processing model {model_id} with frequency {frequency}, information_date {information_date}")
+        if frequency == "business_daily" and not is_business:
+            continue
+        if frequency in ("weekly", "monthly") and information_date != today_str:
+            continue
+        start = dt.now()
+        try:
+            baseline_days = calendar.previous_business_days(information_date, 2)
+            baseline_date = baseline_days[0].isoformat() if baseline_days else None
+            runner = MetricRunner(spark, reader, join_keys=["customer_id"], calendar=calendar)
+            results = runner.run(model_id, information_date, execution_id, baseline_date=baseline_date)
+        except MissingDataError as exc:
+            log_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
+                    "execution_id": execution_id,
+                    "dag_id": dag_id,
+                    "airflow_run_id": execution_id,
+                    "run_date": start,
+                    "end_date": dt.now(),
+                    "status": "MISSING_DATA",
+                    "error_message": str(exc),
+                    "reason": "SCHEDULED",
+                    "variables_expected": 0,
+                    "variables_processed": 0,
+                    "variables_missing": 1,
+                    "metrics_calculated": 0,
+                    "metrics_failed": 0,
+                    "duration_seconds": (dt.now() - start).seconds,
+                    "information_date": information_date,
+                    "model_id": model_id,
+                }]),
+                schema=schemas.get(PROCESS_CONFIG.execution_log_table),
+            )
+            writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            continue
+        except Exception as exc:
+            log_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
+                    "execution_id": execution_id,
+                    "dag_id": dag_id,
+                    "airflow_run_id": execution_id,
+                    "run_date": start,
+                    "end_date": dt.now(),
+                    "status": "FAILED",
+                    "error_message": str(exc),
+                    "reason": "SCHEDULED",
+                    "variables_expected": 0,
+                    "variables_processed": 0,
+                    "variables_missing": 0,
+                    "metrics_calculated": 0,
+                    "metrics_failed": 0,
+                    "duration_seconds": 0,
+                    "information_date": information_date,
+                    "model_id": model_id,
+                }]),
+                schema=schemas.get(PROCESS_CONFIG.execution_log_table),
+            )
+            writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+            raise exc
+
+        aggregate_alerts = aggregator.aggregate(results)
+        metric_rows = []
+        for r in results:
+            metric_rows.append({
+                "execution_id": execution_id,
+                "variable": r.variable,
+                "var_type": r.var_type,
+                "metric_name": r.metric_name,
+                "metric_value": r.metric_value,
+                "baseline_value": r.baseline_value,
+                "threshold_ambar": r.threshold_ambar,
+                "threshold_red": r.threshold_red,
+                "status": r.status,
+                "baseline_process_date": r.baseline_process_date,
+                "run_date": r.run_date,
+                "dag_id": dag_id,
+                "airflow_run_id": execution_id,
+                "information_date": information_date,
+                "model_id": model_id,
+            })
+        alert_rows = []
+        for a in aggregate_alerts:
+            alert_rows.append({
+                "execution_id": execution_id,
+                "var_type": a.var_type,
+                "total_metrics": a.total_metrics,
+                "count_ambar": a.count_ambar,
+                "count_red": a.count_red,
+                "equivalent_yellow": a.equivalent_yellow,
+                "stress_ratio": a.stress_ratio,
+                "aggregate_status": a.aggregate_status,
+                "alert_sent": a.alert_sent,
+                "alert_type": a.alert_type,
+                "red_equivalent_used": a.red_equivalent,
+                "alert_ambar_pct_used": a.alert_ambar_pct,
+                "alert_red_pct_used": a.alert_red_pct,
+                "run_date": dt.now(),
+                "information_date": information_date,
+                "model_id": model_id,
+            })
+        if metric_rows:
+            metrics_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.metric_result_table, metric_rows),
+                schema=schemas.get(PROCESS_CONFIG.metric_result_table),
+            )
+            writer.write_atomic(metrics_df, PROCESS_CONFIG.metric_result_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+        if alert_rows:
+            alerts_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.alert_aggregate_table, alert_rows),
+                schema=schemas.get(PROCESS_CONFIG.alert_aggregate_table),
+            )
+            writer.write_atomic(alerts_df, PROCESS_CONFIG.alert_aggregate_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+        if runner.summaries:
+            summary_df = spark.createDataFrame(
+                schemas.normalize_rows(PROCESS_CONFIG.variable_summary_table, runner.summaries),
+                schema=schemas.get(PROCESS_CONFIG.variable_summary_table),
+            )
+            writer.write_atomic(summary_df, PROCESS_CONFIG.variable_summary_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+        log_df = spark.createDataFrame(
+            schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
+                "execution_id": execution_id,
+                "dag_id": dag_id,
+                "airflow_run_id": execution_id,
+                "run_date": start,
+                "end_date": dt.now(),
+                "status": "SUCCESS",
+                "error_message": "",
+                "reason": "SCHEDULED",
+                "variables_expected": len({r.variable for r in results}),
+                "variables_processed": len({r.variable for r in results}),
+                "variables_missing": 0,
+                "metrics_calculated": len(results),
+                "metrics_failed": 0,
+                "duration_seconds": (dt.now() - start).seconds,
+                "information_date": information_date,
+                "model_id": model_id,
+            }]),
+            schema=schemas.get(PROCESS_CONFIG.execution_log_table),
+        )
+        writer.write_atomic(log_df, PROCESS_CONFIG.execution_log_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+
+
+with DAG(
+    "panopto_production_runner",
+    default_args={
+        "owner": "panopto",
+        "start_date": datetime(2025, 10, 1),
+        "retries": 10,
+        "retry_delay": timedelta(minutes=5),
+        "email_on_failure": False,
+        "email_on_retry": False,
+    },
+    schedule="@daily",
+    catchup=False,
+    tags=["panopto"],
+) as dag:
+    run = PythonOperator(task_id="run_production", python_callable=run_production)
+    trigger_alert = TriggerDagRunOperator(
+        task_id="trigger_alert_dispatcher",
+        trigger_dag_id="panopto_alert_dispatcher",
+        conf={"information_date": "{{ ds }}"},
+    )
+    run >> trigger_alert

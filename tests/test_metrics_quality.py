@@ -2,14 +2,14 @@
 
 import pytest
 
-from mecv.metrics.quality import (
+from panopto.metrics.quality import (
     CardinalityRatioMetric,
     CategoryCompositionDriftMetric,
     DominantCategoryRateMetric,
     NullRateMetric,
     OutlierRateMetric,
 )
-from mecv.metrics.result import MetricResult
+from panopto.metrics.result import MetricResult
 
 
 def _params(variable: str, var_type: str = "raw", data_type: str = "numeric"):

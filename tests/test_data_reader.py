@@ -2,8 +2,8 @@
 
 from pyspark.sql import SparkSession
 
-from mecv.data.reader import DataReader
-from mecv.data.sources import DataSourceSpec
+from panopto.data.reader import DataReader
+from panopto.data.sources import DataSourceSpec
 
 
 def test_data_reader_filters_by_reading_dates(spark: SparkSession):

@@ -7,11 +7,11 @@ import pytest
 import pyspark.sql.functions as F
 from pyspark.sql import Row, SparkSession
 
-from mecv.binning import numeric_bins
-from mecv.config.tables import PROCESS_CONFIG
-from mecv.data.reader import DataReader
-from mecv.metrics.result import MetricResult
-from mecv.metrics.runner import MetricRunner, MissingDataError
+from panopto.binning import numeric_bins
+from panopto.config.tables import PROCESS_CONFIG
+from panopto.data.reader import DataReader
+from panopto.metrics.result import MetricResult
+from panopto.metrics.runner import MetricRunner, MissingDataError
 
 
 def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = "M1") -> None:

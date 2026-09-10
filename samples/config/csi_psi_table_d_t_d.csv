@@ -15,10 +15,10 @@ process_date,model_id,schema,table_name,type,variable,bin,bin_type,category_valu
 2025-10-15,1079_cta_lvl,gcprmsbx_work,transformed_1079,transformed,transformed_var_a,1,NUMERIC,,-inf,-0.5,-inf,<=,210,0.07,information_date
 2025-10-15,1079_cta_lvl,gcprmsbx_work,transformed_1079,transformed,transformed_var_a,2,NUMERIC,,-0.5,0.5,>,<=,510,0.00,information_date
 2025-10-15,1079_cta_lvl,gcprmsbx_work,transformed_1079,transformed,transformed_var_a,3,NUMERIC,,0.5,inf,>,inf,280,-0.06,information_date
-2025-10-15,1079_cta_lvl,mecv,score_1079,score,score,1,NUMERIC,,0.0,0.2,>=,<=,150,0.20,information_date
-2025-10-15,1079_cta_lvl,mecv,score_1079,score,score,2,NUMERIC,,0.2,0.4,>,<=,250,0.05,information_date
-2025-10-15,1079_cta_lvl,mecv,score_1079,score,score,3,NUMERIC,,0.4,0.6,>,<=,300,-0.05,information_date
-2025-10-15,1079_cta_lvl,mecv,score_1079,score,score,4,NUMERIC,,0.6,0.8,>,<=,220,-0.10,information_date
-2025-10-15,1079_cta_lvl,mecv,score_1079,score,score,5,NUMERIC,,0.8,1.0,>,<=,180,0.15,information_date
+2025-10-15,1079_cta_lvl,panopto,score_1079,score,score,1,NUMERIC,,0.0,0.2,>=,<=,150,0.20,information_date
+2025-10-15,1079_cta_lvl,panopto,score_1079,score,score,2,NUMERIC,,0.2,0.4,>,<=,250,0.05,information_date
+2025-10-15,1079_cta_lvl,panopto,score_1079,score,score,3,NUMERIC,,0.4,0.6,>,<=,300,-0.05,information_date
+2025-10-15,1079_cta_lvl,panopto,score_1079,score,score,4,NUMERIC,,0.6,0.8,>,<=,220,-0.10,information_date
+2025-10-15,1079_cta_lvl,panopto,score_1079,score,score,5,NUMERIC,,0.8,1.0,>,<=,180,0.15,information_date
 2025-10-15,1079_cta_lvl,gcprmsbx_work,target_1079,target,target,1,CATEGORICAL,0,,,,,700,-0.12,information_date
 2025-10-15,1079_cta_lvl,gcprmsbx_work,target_1079,target,target,2,CATEGORICAL,1,,,,,300,0.30,information_date
