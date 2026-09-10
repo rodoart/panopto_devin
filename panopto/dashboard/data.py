@@ -19,7 +19,7 @@ class DashboardData:
     def get_models(self) -> list:
         """Lista de model_id disponibles."""
         df = self.spark.sql(
-            "SELECT DISTINCT model_id FROM panopto_dashboard_model_summary ORDER BY model_id"
+            "SELECT DISTINCT model_id FROM gcprmsbx_work.panopto_dashboard_model_summary ORDER BY model_id"
         )
         return [r["model_id"] for r in df.collect()]
 
@@ -42,7 +42,7 @@ class DashboardData:
     ) -> pd.DataFrame:
         """Carga panopto_dashboard_semaphore con filtros."""
         df = self._apply_filters(
-            self.spark.table("panopto_dashboard_semaphore"), model_id, start, end
+            self.spark.table("gcprmsbx_work.panopto_dashboard_semaphore"), model_id, start, end
         ).orderBy("information_date")
         pdf = df.toPandas()
         if not pdf.empty:
@@ -57,7 +57,7 @@ class DashboardData:
     ) -> pd.DataFrame:
         """Carga panopto_dashboard_model_summary con filtros."""
         df = self._apply_filters(
-            self.spark.table("panopto_dashboard_model_summary"), model_id, start, end
+            self.spark.table("gcprmsbx_work.panopto_dashboard_model_summary"), model_id, start, end
         ).orderBy("information_date")
         pdf = df.toPandas()
         if not pdf.empty:

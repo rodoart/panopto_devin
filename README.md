@@ -15,11 +15,11 @@ cp .env.example .env
 
 | Tablas | Motor |
 |--------|-------|
-| Configuración (`model_summary_csi_psi_d_t_d`, `panopto_model_table_config_d_t_d`, `csi_psi_table_d_t_d`, `tresholds_table_d_t_d`, `alert_policy_d_t_d`, `category_policy_d_t_d`, `variable_metadata_d_t_d`) | Hive / Parquet |
-| Calendario (`banamex_calendar_d_t_d`) | Hive / Parquet |
-| Estado y resultados (`config_changelog_d_t_d`, `category_baseline_rank_d_t_d`, `metric_threshold_auto_d_t_d`, `panopto_metric_result_d_t_d`, `panopto_alert_aggregate_d_t_d`, `panopto_execution_log_d_t_d`, `panopto_email_log_d_t_d`, `panopto_staging_control_d_t_d`, `panopto_variable_summary_d_t_d`) | Hive / Parquet |
+| Configuración (`gcprmsbx_work.panopto_model_summary_csi_psi`, `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_csi_psi_table`, `gcprmsbx_work.panopto_tresholds_table`, `gcprmsbx_work.panopto_alert_policy`, `gcprmsbx_work.panopto_category_policy`, `gcprmsbx_work.panopto_variable_metadata`) | Hive / Parquet |
+| Calendario (`gcprmsbx_work.panopto_banamex_calendar`) | Hive / Parquet |
+| Estado y resultados (`gcprmsbx_work.panopto_config_changelog`, `gcprmsbx_work.panopto_category_baseline_rank`, `gcprmsbx_work.panopto_metric_threshold_auto`, `gcprmsbx_work.panopto_metric_result`, `gcprmsbx_work.panopto_alert_aggregate`, `gcprmsbx_work.panopto_execution_log`, `gcprmsbx_work.panopto_email_log`, `gcprmsbx_work.panopto_staging_control`, `gcprmsbx_work.panopto_variable_summary`) | Hive / Parquet |
 | Calendario (`banamex_calendar_sync_d`) | PostgreSQL |
-| Contactos (`model_contact_d_t_d`) | PostgreSQL |
+| Contactos (`model_contact`) | PostgreSQL |
 | Lista roja global (`red_alert_list_d`) | PostgreSQL |
 
 Los nombres y rutas anteriores se centralizan en `config/tables.json` y se exponen a través de `panopto.config.tables.ProcessConfig`. Para usarlos:
@@ -49,7 +49,7 @@ Esto evita definir `StructType` o columnas hardcodeadas en el código de negocio
 
 ## Configuración de tablas fuente por modelo
 
-Toda la configuración de las tablas `score`, `target`, `raw`, `input` y `processed` vive en Hive, en `panopto_model_table_config_d_t_d`. Ahí se define por modelo:
+Toda la configuración de las tablas `score`, `target`, `raw`, `input` y `processed` vive en Hive, en `gcprmsbx_work.panopto_model_table_config`. Ahí se define por modelo:
 
 - `table_role`: rol de la tabla (`score`, `target`, `raw`, `input`, `processed`).
 - `source_table`: referencia URI (`hive:schema.tabla` o `parquet:/ruta`).
@@ -70,7 +70,7 @@ process_date,model_id,table_role,table_name,source_type,source_schema,source_tab
 2025-10-15,1079_cta_lvl,target,target_1079,HIVE,gcprmsbx_work,hive:gcprmsbx_work.target_1079,"[""num_cliente""]","[""customer_id""]",information_date,,6,1,"TRIM(num_cliente) AS num_cliente",,[],true
 ```
 
-El CSV de ejemplo completo está en `samples/config/panopto_model_table_config_d_t_d.csv`.
+El CSV de ejemplo completo está en `samples/config/gcprmsbx_work.panopto_model_table_config.csv`.
 
 ## Muestras
 
@@ -91,7 +91,7 @@ Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejempl
 
 ## Estructura de `source_table`
 
-El campo `source_table` de `variable_metadata_d_t_d` usa un prefijo URI:
+El campo `source_table` de `gcprmsbx_work.panopto_variable_metadata` usa un prefijo URI:
 
 - `hive:schema.tabla` para tablas Hive.
 - `parquet:/ruta/externa` o `parquet:/ruta/information_date=2025-10-15` para archivos parquet.
@@ -122,7 +122,7 @@ print(result)
 
 Métricas registradas actualmente: `null_rate`, `cardinality_ratio`, `outlier_rate`, `dominant_category_rate`, `category_composition_drift`, `psi_canonical`, `psi_dynamic`, `ks_vs_dev`, `correlation_drift`, `range_violation`, `entropy`, `approval_rate`, `tail_shift`, `concentration_gini`, `psi_approved`, `psi_rejected`, `auc`, `gini`, `brier_score`, `lift_top_decile`, `event_rate`, `psi_target`, `calibration_slope`, `ks_score_target`.
 
-`panopto_variable_summary_d_t_d` guarda estadísticos descriptivos por variable: `count_total`, `count_non_null`, `count_null`, `min`, `max`, `mean`, `std`, deciles (`p10` ... `p90`) para numéricas; `distinct_count`, `top_category`, `top_category_count` para categóricas.
+`gcprmsbx_work.panopto_variable_summary` guarda estadísticos descriptivos por variable: `count_total`, `count_non_null`, `count_null`, `min`, `max`, `mean`, `std`, deciles (`p10` ... `p90`) para numéricas; `distinct_count`, `top_category`, `top_category_count` para categóricas.
 
 ## MetricRunner
 
@@ -157,7 +157,7 @@ checkpoint = Checkpoint(spark, base_path="/tmp/panopto/checkpoints")
 runner = MetricRunner(spark, reader, join_keys=["customer_id"], checkpoint=checkpoint)
 ```
 
-El campo `reading_mode` de `variable_metadata_d_t_d` controla qué filas del periodo leer:
+El campo `reading_mode` de `gcprmsbx_work.panopto_variable_metadata` controla qué filas del periodo leer:
 - `each` (default): un solo `information_date`.
 - `first`: primer día hábil del periodo (semana/mes).
 - `last`: último día hábil del periodo.
@@ -197,7 +197,7 @@ log = dispatcher.dispatch(
 print(log)
 ```
 
-`EmailDispatcher` lee `model_contact_d_t_d` y `red_alert_list_d` desde PostgreSQL, arma un email HTML con `EmailBuilder` y lo envía por SMTP usando las credenciales de `.env`.
+`EmailDispatcher` lee `model_contact` y `red_alert_list_d` desde PostgreSQL, arma un email HTML con `EmailBuilder` y lo envía por SMTP usando las credenciales de `.env`.
 
 Para desactivar completamente el envío de correos (por ejemplo, en entornos de prueba o cuando el clúster está inestable), define `PANOPTO_DISABLE_EMAILS=true`. En ese caso `dispatch` retorna inmediatamente un `EmailLog` con `status=DISABLED` sin intentar la conexión SMTP.
 
@@ -212,7 +212,7 @@ Los DAGs están en `dags/`:
 | `panopto_alert_dispatcher` | Diaria | Genera agregados, arma emails HTML y despacha notificaciones; soporta alertas `MISSING_DATA`. |
 | `panopto_output_validator` | Diaria | Valida que existan datos del día en `panopto_metric_result` y `panopto_alert_aggregate`; placeholder para refresco de Tableau. |
 | `panopto_orphan_cleanup` | Semanal | Elimina directorios HDFS de `/tmp/panopto_staging` con más de 7 días. |
-| `panopto_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d` hasta 7 días, convierte a `banamex_calendar_d_t_d` y sincroniza a `banamex_calendar_sync_d`. Si se agota el tiempo, pausa los DAGs `panopto_*` sin enviar correos. |
+| `panopto_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d` hasta 7 días, convierte a `gcprmsbx_work.panopto_banamex_calendar` y sincroniza a `banamex_calendar_sync_d`. Si se agota el tiempo, pausa los DAGs `panopto_*` sin enviar correos. |
 
 Todos los DAGs tienen `email_on_failure=False` y `email_on_retry=False` para evitar enviar correos por fallas transitorias del clúster, y `retries` elevado para reintentar automáticamente hasta alcanzar el éxito. Las excepciones genéricas en `panopto_production_runner`, `panopto_alert_dispatcher` y `panopto_config_watcher` se propagan para que Airflow reactive la tarea, mientras que `MissingDataError` se registra y continúa con el siguiente modelo.
 
@@ -254,31 +254,31 @@ Luego ejecuta:
 python scripts/onboard_model.py
 ```
 
-Esto inserta las filas en `panopto_model_table_config_d_t_d`, `variable_metadata_d_t_d`, `model_summary_csi_psi_d_t_d` (Hive) y `model_contact_d_t_d` (PostgreSQL). Después el DAG `panopto_config_watcher` calcula bins, rankings y umbrales automáticos en el próximo ciclo.
+Esto inserta las filas en `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_variable_metadata`, `gcprmsbx_work.panopto_model_summary_csi_psi` (Hive) y `model_contact` (PostgreSQL). Después el DAG `panopto_config_watcher` calcula bins, rankings y umbrales automáticos en el próximo ciclo.
 
 ## Tabla de motores: Hive vs PostgreSQL
 
 | Motor | Tablas |
 |-------|--------|
-| **Hive / Parquet** | `panopto_model_table_config_d_t_d`, `model_summary_csi_psi_d_t_d`, `variable_metadata_d_t_d`, `tresholds_table_d_t_d`, `category_policy_d_t_d`, `alert_policy_d_t_d`, `csi_psi_table_d_t_d`, `category_baseline_rank_d_t_d`, `metric_threshold_auto_d_t_d`, `panopto_metric_result_d_t_d`, `panopto_alert_aggregate_d_t_d`, `panopto_execution_log_d_t_d`, `panopto_email_log_d_t_d`, `panopto_variable_summary_d_t_d`, `panopto_staging_control_d_t_d`, `banamex_calendar_d_t_d`, `config_changelog_d_t_d` |
-| **PostgreSQL** | `banamex_calendar_sync_d`, `model_contact_d_t_d`, `red_alert_list_d` |
+| **Hive / Parquet** | `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_model_summary_csi_psi`, `gcprmsbx_work.panopto_variable_metadata`, `gcprmsbx_work.panopto_tresholds_table`, `gcprmsbx_work.panopto_category_policy`, `gcprmsbx_work.panopto_alert_policy`, `gcprmsbx_work.panopto_csi_psi_table`, `gcprmsbx_work.panopto_category_baseline_rank`, `gcprmsbx_work.panopto_metric_threshold_auto`, `gcprmsbx_work.panopto_metric_result`, `gcprmsbx_work.panopto_alert_aggregate`, `gcprmsbx_work.panopto_execution_log`, `gcprmsbx_work.panopto_email_log`, `gcprmsbx_work.panopto_variable_summary`, `gcprmsbx_work.panopto_staging_control`, `gcprmsbx_work.panopto_banamex_calendar`, `gcprmsbx_work.panopto_config_changelog` |
+| **PostgreSQL** | `banamex_calendar_sync_d`, `model_contact`, `red_alert_list_d` |
 
 ## Umbrales para score y target no binarias
 
-La tabla `panopto_metric_result_d_t_d` no depende de que `target` sea binario. Las métricas de calidad (`null_rate`, `outlier_rate`, `psi_canonical`, etc.) y las de score (`entropy`, `concentration_gini`, `tail_shift`, etc.) se calculan sobre la distribución propia de la variable.
+La tabla `gcprmsbx_work.panopto_metric_result` no depende de que `target` sea binario. Las métricas de calidad (`null_rate`, `outlier_rate`, `psi_canonical`, etc.) y las de score (`entropy`, `concentration_gini`, `tail_shift`, etc.) se calculan sobre la distribución propia de la variable.
 
 Cuando `target` es binaria, las métricas conjugadas (`auc`, `gini`, `brier_score`, `lift_top_decile`, `event_rate`, `ks_score_target`, `calibration_slope`) son directas:
 
 - `target = 1` es el evento, `target = 0` el no-evento.
-- `cut_off_probability` (de `model_summary_csi_psi_d_t_d`) separa aprobados/rechazados para `approval_rate`, `psi_approved` y `psi_rejected`.
+- `cut_off_probability` (de `gcprmsbx_work.panopto_model_summary_csi_psi`) separa aprobados/rechazados para `approval_rate`, `psi_approved` y `psi_rejected`.
 
-Si `target` es continua o multicase, las métricas conjugadas que requieren dos clases no se computan. En su lugar se usan métricas de estabilidad y calidad del `score` y de la variable `target` por separado. Los umbrales en `tresholds_table_d_t_d` y `metric_threshold_auto_d_t_d` siguen aplicándose con `threshold_ambar` y `threshold_red` según la naturaleza de la métrica; por ejemplo, `psi_canonical` compara distribuciones sin importar si `target` es binario.
+Si `target` es continua o multicase, las métricas conjugadas que requieren dos clases no se computan. En su lugar se usan métricas de estabilidad y calidad del `score` y de la variable `target` por separado. Los umbrales en `gcprmsbx_work.panopto_tresholds_table` y `gcprmsbx_work.panopto_metric_threshold_auto` siguen aplicándose con `threshold_ambar` y `threshold_red` según la naturaleza de la métrica; por ejemplo, `psi_canonical` compara distribuciones sin importar si `target` es binario.
 
-Para targets continuas, el campo `model_type` en `model_summary_csi_psi_d_t_d` debe reflejar `regression` y `MetricRunner` omite las métricas binarias (`auc`, `brier_score`, `ks_score_target`) si no detecta una columna `target` binaria.
+Para targets continuas, el campo `model_type` en `gcprmsbx_work.panopto_model_summary_csi_psi` debe reflejar `regression` y `MetricRunner` omite las métricas binarias (`auc`, `brier_score`, `ks_score_target`) si no detecta una columna `target` binaria.
 
 ## Dashboard con Streamlit
 
-El tablero consume las vistas `panopto_dashboard_semaphore` y `panopto_dashboard_model_summary` y se ejecuta con Streamlit. Es accesible directamente desde el navegador sin Tableau.
+El tablero consume las vistas `gcprmsbx_work.panopto_dashboard_semaphore` y `gcprmsbx_work.panopto_dashboard_model_summary` y se ejecuta con Streamlit. Es accesible directamente desde el navegador sin Tableau.
 
 ```bash
 streamlit run panopto/dashboard/app.py
@@ -290,10 +290,10 @@ Se abre en `http://localhost:8501`.
 
 La configuración se divide ahora en dos tablas principales:
 
-- **`panopto_model_table_config_d_t_d`**: toda la configuración a nivel tabla (conexión, llaves, `partition_columns`, `reading_mode`, `history_months`, `lag`, `sql_transform`, `date_column`, `date_format`).
-- **`variable_metadata_d_t_d`**: solo atributos de la variable (`variable`, `var_type`, `data_type`, `source_table`, `source_column`, `is_monotonic`). La relación con la tabla se hace por `source_table`.
+- **`gcprmsbx_work.panopto_model_table_config`**: toda la configuración a nivel tabla (conexión, llaves, `partition_columns`, `reading_mode`, `history_months`, `lag`, `sql_transform`, `date_column`, `date_format`).
+- **`gcprmsbx_work.panopto_variable_metadata`**: solo atributos de la variable (`variable`, `var_type`, `data_type`, `source_table`, `source_column`, `is_monotonic`). La relación con la tabla se hace por `source_table`.
 
-La configuración de correo también vive en Hive: **`panopto_email_config_d_t_d`** (`model_id=global` para remitente global). `EmailDispatcher` primero lee Hive y, si no hay fila, cae a `PANOPTO_EMAIL_CONFIG_PATH` (JSON).
+La configuración de correo también vive en Hive: **`gcprmsbx_work.panopto_email_config`** (`model_id=global` para remitente global). `EmailDispatcher` primero lee Hive y, si no hay fila, cae a `PANOPTO_EMAIL_CONFIG_PATH` (JSON).
 
 Ver documentación detallada en:
 

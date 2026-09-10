@@ -49,9 +49,9 @@ class AtomicParquetWriter:
         suffix = self._partition_suffix(partition_cols, information_date, model_id)
         source_path = f"{temp_path}/{suffix}" if suffix else temp_path
         final_path = (
-            f"{self.warehouse_dir}/{target_table}/{suffix}"
+            f"{self._warehouse_path(target_table)}/{suffix}"
             if suffix
-            else f"{self.warehouse_dir}/{target_table}"
+            else self._warehouse_path(target_table)
         )
         self._write_temp(df, temp_path, partition_cols)
         temp_df = self.spark.read.parquet(temp_path)
@@ -116,6 +116,13 @@ class AtomicParquetWriter:
         success = self.fs.rename(source_jvm, final_jvm)
         if not success:
             raise RuntimeError(f"rename failed: {source_path} -> {final_path}")
+
+    def _warehouse_path(self, target_table: str) -> str:
+        """Devuelve la ruta de HDFS para una tabla calificada ``db.table``."""
+        if "." in target_table:
+            schema, table = target_table.rsplit(".", 1)
+            return f"{self.warehouse_dir}/{schema}.db/{table}"
+        return f"{self.warehouse_dir}/{target_table}"
 
     def _repair_table(self, target_table: str) -> None:
         """Helper interno que realiza la operación "repair_table"."""

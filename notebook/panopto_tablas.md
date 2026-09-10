@@ -1,9 +1,12 @@
 # Diccionario de tablas PANOPTO
 
 
-Esta guía describe las tablas de configuración, resultados y logs del framework PANOPTO, junto con el nombre y tipo de cada campo y un ejemplo de fila.
+Esta guía describe las tablas de configuración, resultados y logs del framework PANOPTO. La **ruta Spark** es `gcprmsbx_work.panopto_<nombre_corto>`.
 
-## `panopto_model_table_config_d_t_d`
+## `model_table_config`
+
+Ruta Spark: `gcprmsbx_work.panopto_model_table_config`
+
 
 Configuración a nivel tabla (conexión, llaves, particiones, transformación, ventana histórica, reading_mode).
 
@@ -29,31 +32,14 @@ Configuración a nivel tabla (conexión, llaves, particiones, transformación, v
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `1079_cta_lvl`
-- `table_role`: `raw`
-- `table_name`: `raw_1079`
-- `source_type`: `HIVE`
-- `source_schema`: `gcprmsbx_work`
-- `source_table`: `hive:gcprmsbx_work.raw_1079`
-- `entity_key_columns`: `["customer_id"]`
-- `canonical_key_columns`: `["customer_id"]`
-- `date_column`: `information_date`
-- `date_format`: ``
-- `history_months`: `3`
-- `lag`: `0`
-- `sql_transform`: `TRIM(customer_id) AS customer_id`
-- `data_type`: ``
-- `partition_columns`: `[]`
-- `reading_mode`: `each`
-- `active`: `true`
-
 ---
 
-## `variable_metadata_d_t_d`
+## `variable_metadata`
 
-Catálogo de variables por modelo. Relaciona cada variable con su tabla fuente a través de `source_table` (debe coincidir con `source_table` en `panopto_model_table_config_d_t_d`).
+Ruta Spark: `gcprmsbx_work.panopto_variable_metadata`
+
+
+Catálogo de variables por modelo. Relaciona cada variable con su tabla fuente a través de `source_table`.
 
 
 | Campo | Tipo | Descripción |
@@ -67,19 +53,12 @@ Catálogo de variables por modelo. Relaciona cada variable con su tabla fuente a
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `1079_cta_lvl`
-- `variable`: `mean_var_1_6m`
-- `var_type`: `raw`
-- `data_type`: `numeric`
-- `source_table`: `hive:gcprmsbx_work.raw_1079`
-- `source_column`: `mean_var_1_6m`
-- `is_monotonic`: `false`
-
 ---
 
-## `panopto_email_config_d_t_d`
+## `email_config`
+
+Ruta Spark: `gcprmsbx_work.panopto_email_config`
+
 
 Configuración del remitente y prefijo de correos. Se usa `model_id=global` para remitentes globales.
 
@@ -95,19 +74,12 @@ Configuración del remitente y prefijo de correos. Se usa `model_id=global` para
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `global`
-- `sender_name`: `PANOPTO Alertas`
-- `sender_email`: `alerts@example.com`
-- `reply_to`: `noreply@example.com`
-- `subject_prefix`: `[PANOPTO]`
-- `logo_url`: ``
-- `active`: `true`
-
 ---
 
-## `model_summary_csi_psi_d_t_d`
+## `model_summary_csi_psi`
+
+Ruta Spark: `gcprmsbx_work.panopto_model_summary_csi_psi`
+
 
 Resumen del modelo: nombre, tipo, cut_off, frecuencia, umbrales de alerta.
 
@@ -132,28 +104,12 @@ Resumen del modelo: nombre, tipo, cut_off, frecuencia, umbrales de alerta.
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `1079_cta_lvl`
-- `model_name`: `Modelo 1079 Cuenta Level`
-- `model_description`: `Modelo de nivel de cuenta`
-- `model_type`: `binary`
-- `status`: `active`
-- `cut_off_probability`: `0.35`
-- `frequency`: `daily`
-- `window_value`: `3`
-- `window_unit`: `weeks`
-- `trigger_csi_ambar`: `0.1`
-- `trigger_csi_red`: `0.2`
-- `trigger_csi_variation_ambar`: `0.05`
-- `trigger_csi_variation_red`: `0.1`
-- `score_alert_ambar_pct`: `0.30`
-- `score_alert_red_pct`: `0.15`
-- `score_red_equivalent`: `2`
-
 ---
 
-## `tresholds_table_d_t_d`
+## `tresholds_table`
+
+Ruta Spark: `gcprmsbx_work.panopto_tresholds_table`
+
 
 Umbrales manuales de PSI por variable y tipo.
 
@@ -169,19 +125,12 @@ Umbrales manuales de PSI por variable y tipo.
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `1079_cta_lvl`
-- `variable`: `mean_var_1_6m`
-- `type`: `raw`
-- `psi_threshold_ambar`: `0.10`
-- `psi_threshold_red`: `0.20`
-- `psi_variation_threshold_ambar`: `0.05`
-- `psi_variation_threshold_red`: `0.10`
-
 ---
 
-## `alert_policy_d_t_d`
+## `alert_policy`
+
+Ruta Spark: `gcprmsbx_work.panopto_alert_policy`
+
 
 Política de agregación de alertas por `var_type`.
 
@@ -195,17 +144,12 @@ Política de agregación de alertas por `var_type`.
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `1079_cta_lvl`
-- `var_type`: `raw`
-- `red_equivalent`: `3`
-- `alert_ambar_pct`: `0.60`
-- `alert_red_pct`: `0.40`
-
 ---
 
-## `category_policy_d_t_d`
+## `category_policy`
+
+Ruta Spark: `gcprmsbx_work.panopto_category_policy`
+
 
 Política de categorías: top_n_threshold y critical_top_k.
 
@@ -218,16 +162,12 @@ Política de categorías: top_n_threshold y critical_top_k.
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `1079_cta_lvl`
-- `variable`: `category_city`
-- `top_n_threshold`: `50`
-- `critical_top_k`: `5`
-
 ---
 
-## `csi_psi_table_d_t_d`
+## `csi_psi_table`
+
+Ruta Spark: `gcprmsbx_work.panopto_csi_psi_table`
+
 
 Bins de referencia para métricas PSI/CSI.
 
@@ -251,27 +191,12 @@ Bins de referencia para métricas PSI/CSI.
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-**Ejemplo de fila:**
-- `process_date`: `2025-10-15`
-- `model_id`: `1079_cta_lvl`
-- `schema`: `gcprmsbx_work`
-- `table_name`: `raw_1079`
-- `type`: `raw`
-- `variable`: `mean_var_1_6m`
-- `bin`: `1`
-- `bin_type`: `NUMERIC`
-- `category_value`: ``
-- `lb`: `-inf`
-- `ub`: `0.2`
-- `lower_bound_type`: `-inf`
-- `upper_bound_type`: `<=`
-- `count_dev`: `200`
-- `woe`: `0.05`
-- `information_date_column`: `information_date`
-
 ---
 
-## `metric_threshold_auto_d_t_d`
+## `metric_threshold_auto`
+
+Ruta Spark: `gcprmsbx_work.panopto_metric_threshold_auto`
+
 
 Umbrales calculados automáticamente en entrenamiento.
 
@@ -289,11 +214,12 @@ Umbrales calculados automáticamente en entrenamiento.
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-*No hay muestra aún.*
-
 ---
 
-## `category_baseline_rank_d_t_d`
+## `category_baseline_rank`
+
+Ruta Spark: `gcprmsbx_work.panopto_category_baseline_rank`
+
 
 Ranking de categorías del baseline.
 
@@ -309,11 +235,12 @@ Ranking de categorías del baseline.
 | `process_date` | string |  |
 | `model_id` | string |  |
 
-*No hay muestra aún.*
-
 ---
 
-## `banamex_calendar_d_t_d`
+## `banamex_calendar`
+
+Ruta Spark: `gcprmsbx_work.panopto_banamex_calendar`
+
 
 Calendario de días hábiles.
 
@@ -326,35 +253,12 @@ Calendario de días hábiles.
 | `holiday_name` | string |  |
 | `sync_timestamp` | timestamp |  |
 
-*No hay muestra aún.*
-
 ---
 
-## `config_changelog_d_t_d`
+## `alert_aggregate`
 
-Auditoría de cambios de configuración.
+Ruta Spark: `gcprmsbx_work.panopto_alert_aggregate`
 
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `change_timestamp` | timestamp |  |
-| `table_name` | string |  |
-| `change_type` | string |  |
-| `field_changed` | string |  |
-| `old_value` | string |  |
-| `new_value` | string |  |
-| `triggered_retraining` | boolean |  |
-| `error_message` | string |  |
-| `executed_by_dag_id` | string |  |
-| `run_id` | string |  |
-| `process_date` | string |  |
-| `model_id` | string |  |
-
-*No hay muestra aún.*
-
----
-
-## `panopto_alert_aggregate_d_t_d`
 
 Agregación de alertas por `var_type` y fecha.
 
@@ -378,11 +282,37 @@ Agregación de alertas por `var_type` y fecha.
 | `information_date` | string |  |
 | `model_id` | string |  |
 
-*No hay muestra aún.*
+---
+
+## `config_changelog`
+
+Ruta Spark: `gcprmsbx_work.panopto_config_changelog`
+
+
+Auditoría de cambios de configuración.
+
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `change_timestamp` | timestamp |  |
+| `table_name` | string |  |
+| `change_type` | string |  |
+| `field_changed` | string |  |
+| `old_value` | string |  |
+| `new_value` | string |  |
+| `triggered_retraining` | boolean |  |
+| `error_message` | string |  |
+| `executed_by_dag_id` | string |  |
+| `run_id` | string |  |
+| `process_date` | string |  |
+| `model_id` | string |  |
 
 ---
 
-## `panopto_email_log_d_t_d`
+## `email_log`
+
+Ruta Spark: `gcprmsbx_work.panopto_email_log`
+
 
 Log de correos enviados.
 
@@ -403,11 +333,12 @@ Log de correos enviados.
 | `information_date` | string |  |
 | `model_id` | string |  |
 
-*No hay muestra aún.*
-
 ---
 
-## `panopto_execution_log_d_t_d`
+## `execution_log`
+
+Ruta Spark: `gcprmsbx_work.panopto_execution_log`
+
 
 Log de ejecución de cada corrida.
 
@@ -431,11 +362,12 @@ Log de ejecución de cada corrida.
 | `information_date` | string |  |
 | `model_id` | string |  |
 
-*No hay muestra aún.*
-
 ---
 
-## `panopto_metric_result_d_t_d`
+## `metric_result`
+
+Ruta Spark: `gcprmsbx_work.panopto_metric_result`
+
 
 Resultado de cada métrica ejecutada.
 
@@ -458,11 +390,12 @@ Resultado de cada métrica ejecutada.
 | `information_date` | string |  |
 | `model_id` | string |  |
 
-*No hay muestra aún.*
-
 ---
 
-## `panopto_staging_control_d_t_d`
+## `staging_control`
+
+Ruta Spark: `gcprmsbx_work.panopto_staging_control`
+
 
 Control de staging atómico de parquet.
 
@@ -484,11 +417,12 @@ Control de staging atómico de parquet.
 | `promoted_at` | timestamp |  |
 | `process_date` | string |  |
 
-*No hay muestra aún.*
-
 ---
 
-## `panopto_variable_summary_d_t_d`
+## `variable_summary`
+
+Ruta Spark: `gcprmsbx_work.panopto_variable_summary`
+
 
 Estadísticos descriptivos de cada variable.
 
@@ -504,7 +438,5 @@ Estadísticos descriptivos de cada variable.
 | `statistic_value_str` | string |  |
 | `information_date` | string |  |
 | `model_id` | string |  |
-
-*No hay muestra aún.*
 
 ---

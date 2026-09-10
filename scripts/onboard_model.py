@@ -96,10 +96,7 @@ MODEL: Dict[str, Any] = {
             "data_type": "numeric",
             "source_table": "hive:gcprmsbx_work.raw_nuevo_modelo",
             "source_column": "var_1",
-            "information_date_column": "information_date",
-            "partition_columns": ["information_date"],
             "is_monotonic": False,
-            "reading_mode": "each",
         },
         {
             "variable": "score",
@@ -107,10 +104,7 @@ MODEL: Dict[str, Any] = {
             "data_type": "numeric",
             "source_table": "hive:gcprmsbx_work.score_nuevo_modelo",
             "source_column": "score",
-            "information_date_column": "information_date",
-            "partition_columns": ["information_date"],
             "is_monotonic": False,
-            "reading_mode": "each",
         },
         {
             "variable": "target",
@@ -118,10 +112,7 @@ MODEL: Dict[str, Any] = {
             "data_type": "binary",
             "source_table": "hive:gcprmsbx_work.target_nuevo_modelo",
             "source_column": "target",
-            "information_date_column": "information_date",
-            "partition_columns": ["information_date"],
             "is_monotonic": False,
-            "reading_mode": "each",
         },
     ],
     "contacts": [
@@ -153,12 +144,12 @@ def insert_hive(spark: SparkSession) -> None:
     model_id = MODEL["model_id"]
     process_date = MODEL["process_date"]
 
-    # model_summary_csi_psi_d_t_d
+    # model_summary_csi_psi
     summary_rows = _add_partition([MODEL["model_summary"]], model_id, process_date)
     spark.createDataFrame(summary_rows).write.insertInto(PROCESS_CONFIG.model_summary_table, overwrite=False)
     print(f"inserted {len(summary_rows)} row(s) into {PROCESS_CONFIG.model_summary_table}")
 
-    # panopto_model_table_config_d_t_d
+    # panopto_model_table_config
     table_rows = []
     for t in MODEL["tables"]:
         table_rows.append({
@@ -176,27 +167,23 @@ def insert_hive(spark: SparkSession) -> None:
             "sql_transform": t.get("sql_transform", ""),
             "data_type": t.get("data_type", ""),
             "partition_columns": _to_json_list(t.get("partition_columns", [])),
+            "reading_mode": t.get("reading_mode", "each"),
             "active": t.get("active", True),
         })
     table_rows = _add_partition(table_rows, model_id, process_date)
     spark.createDataFrame(table_rows).write.insertInto(PROCESS_CONFIG.model_table_config_table, overwrite=False)
     print(f"inserted {len(table_rows)} row(s) into {PROCESS_CONFIG.model_table_config_table}")
 
-    # variable_metadata_d_t_d
+    # variable_metadata
     var_rows = []
     for v in MODEL["variables"]:
         var_rows.append({
             "variable": v["variable"],
             "var_type": v["var_type"],
             "data_type": v["data_type"],
-            "source_type": v["source_table"].split(":")[0].upper() if ":" in v["source_table"] else "HIVE",
-            "source_schema": "",
             "source_table": v["source_table"],
             "source_column": v["source_column"],
-            "information_date_column": v["information_date_column"],
-            "partition_columns": _to_json_list(v.get("partition_columns", [])),
             "is_monotonic": v.get("is_monotonic", False),
-            "reading_mode": v.get("reading_mode", "each"),
         })
     var_rows = _add_partition(var_rows, model_id, process_date)
     spark.createDataFrame(var_rows).write.insertInto(PROCESS_CONFIG.variable_metadata_table, overwrite=False)

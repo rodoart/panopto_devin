@@ -67,7 +67,7 @@ Requieren unir `score` con `target` usando las `canonical_key_columns`.
 
 ## Notas sobre umbrales
 
-- `threshold_ambar` y `threshold_red` se definen en `metric_threshold_auto_d_t_d` (entrenamiento) o `tresholds_table_d_t_d` (manual).
+- `threshold_ambar` y `threshold_red` se definen en `metric_threshold_auto` (entrenamiento) o `tresholds_table` (manual).
 - Si solo existe `threshold_red`, cualquier valor >= ese valor es `RED`; lo demás es `GREEN`.
 - Si no existe ningún umbral, el estado es `NOT_APPLICABLE`.
 - Métricas `gini`, `brier_score`, `lift_top_decile`, `calibration_slope`, `ks_score_target`, `event_rate`, `approval_rate`, `tail_shift`, `concentration_gini` requieren baseline. Si no hay baseline, se omiten.

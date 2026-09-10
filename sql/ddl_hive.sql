@@ -1,4 +1,9 @@
-CREATE TABLE IF NOT EXISTS model_summary_csi_psi_d_t_d (
+-- DDL de tablas Hive/Spark del modelo PANOPTO
+
+CREATE DATABASE IF NOT EXISTS gcprmsbx_work;
+
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_model_summary_csi_psi (
     model_name STRING,
     model_description STRING,
     model_type STRING,
@@ -15,14 +20,15 @@ CREATE TABLE IF NOT EXISTS model_summary_csi_psi_d_t_d (
     score_alert_red_pct DOUBLE,
     score_red_equivalent INT
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS csi_psi_table_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_csi_psi_table (
     schema STRING,
     table_name STRING,
     type STRING,
@@ -38,14 +44,15 @@ CREATE TABLE IF NOT EXISTS csi_psi_table_d_t_d (
     woe DOUBLE,
     information_date_column STRING
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS tresholds_table_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_tresholds_table (
     variable STRING,
     type STRING,
     psi_threshold_ambar DOUBLE,
@@ -53,59 +60,58 @@ CREATE TABLE IF NOT EXISTS tresholds_table_d_t_d (
     psi_variation_threshold_ambar DOUBLE,
     psi_variation_threshold_red DOUBLE
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS alert_policy_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_alert_policy (
     var_type STRING,
     red_equivalent INT,
     alert_ambar_pct DOUBLE,
     alert_red_pct DOUBLE
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS category_policy_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_category_policy (
     variable STRING,
     top_n_threshold INT,
     critical_top_k INT
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS variable_metadata_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_variable_metadata (
     variable STRING,
     var_type STRING,
     data_type STRING,
-    source_type STRING,
-    source_schema STRING,
     source_table STRING,
     source_column STRING,
-    information_date_column STRING,
-    partition_columns STRING,
-    is_monotonic BOOLEAN,
-    reading_mode STRING
+    is_monotonic BOOLEAN
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS config_changelog_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_config_changelog (
     change_timestamp TIMESTAMP,
     table_name STRING,
     change_type STRING,
@@ -117,14 +123,15 @@ CREATE TABLE IF NOT EXISTS config_changelog_d_t_d (
     executed_by_dag_id STRING,
     run_id STRING
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS category_baseline_rank_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_category_baseline_rank (
     variable STRING,
     category_value STRING,
     rank_dev INT,
@@ -132,14 +139,15 @@ CREATE TABLE IF NOT EXISTS category_baseline_rank_d_t_d (
     top_n_threshold INT,
     critical_top_k INT
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS metric_threshold_auto_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_metric_threshold_auto (
     variable STRING,
     metric_name STRING,
     threshold_ambar DOUBLE,
@@ -149,14 +157,15 @@ CREATE TABLE IF NOT EXISTS metric_threshold_auto_d_t_d (
     sample_size_dev INT,
     calculation_method STRING
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS panopto_staging_control_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_staging_control (
     staging_id STRING,
     execution_id STRING,
     model_id STRING,
@@ -171,14 +180,14 @@ CREATE TABLE IF NOT EXISTS panopto_staging_control_d_t_d (
     validated_at TIMESTAMP,
     promoted_at TIMESTAMP
 )
-PARTITIONED BY (process_date STRING)
+PARTITIONED BY (
+    process_date STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS panopto_metric_result_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_metric_result (
     execution_id STRING,
     variable STRING,
     var_type STRING,
@@ -193,14 +202,15 @@ CREATE TABLE IF NOT EXISTS panopto_metric_result_d_t_d (
     dag_id STRING,
     airflow_run_id STRING
 )
-PARTITIONED BY (information_date STRING, model_id STRING)
+PARTITIONED BY (
+    information_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS panopto_alert_aggregate_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_alert_aggregate (
     execution_id STRING,
     var_type STRING,
     total_metrics INT,
@@ -216,14 +226,15 @@ CREATE TABLE IF NOT EXISTS panopto_alert_aggregate_d_t_d (
     alert_red_pct_used DOUBLE,
     run_date TIMESTAMP
 )
-PARTITIONED BY (information_date STRING, model_id STRING)
+PARTITIONED BY (
+    information_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS panopto_execution_log_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_execution_log (
     execution_id STRING,
     dag_id STRING,
     airflow_run_id STRING,
@@ -239,14 +250,15 @@ CREATE TABLE IF NOT EXISTS panopto_execution_log_d_t_d (
     metrics_failed INT,
     duration_seconds INT
 )
-PARTITIONED BY (information_date STRING, model_id STRING)
+PARTITIONED BY (
+    information_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS panopto_email_log_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_email_log (
     email_id STRING,
     execution_id STRING,
     alert_type STRING,
@@ -259,14 +271,15 @@ CREATE TABLE IF NOT EXISTS panopto_email_log_d_t_d (
     smtp_response STRING,
     retry_count INT
 )
-PARTITIONED BY (information_date STRING, model_id STRING)
+PARTITIONED BY (
+    information_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
 
-CREATE TABLE IF NOT EXISTS panopto_variable_summary_d_t_d (
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_variable_summary (
     execution_id STRING,
     variable STRING,
     var_type STRING,
@@ -275,71 +288,15 @@ CREATE TABLE IF NOT EXISTS panopto_variable_summary_d_t_d (
     statistic_value DOUBLE,
     statistic_value_str STRING
 )
-PARTITIONED BY (information_date STRING, model_id STRING)
-STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
-
-CREATE TABLE IF NOT EXISTS banamex_calendar_d_t_d (
-    calendar_date STRING,
-    is_business_day BOOLEAN,
-    is_holiday BOOLEAN,
-    holiday_name STRING,
-    sync_timestamp TIMESTAMP
+PARTITIONED BY (
+    information_date STRING,
+    model_id STRING
 )
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY'
-);
+;
 
-CREATE OR REPLACE VIEW panopto_dashboard_semaphore AS
-SELECT
-    m.information_date,
-    m.model_id,
-    m.var_type,
-    m.metric_name,
-    m.metric_value,
-    m.status,
-    a.aggregate_status,
-    a.stress_ratio,
-    e.status AS execution_status,
-    e.variables_missing
-FROM panopto_metric_result_d_t_d m
-LEFT JOIN panopto_alert_aggregate_d_t_d a
-    ON m.model_id = a.model_id
-    AND m.information_date = a.information_date
-LEFT JOIN panopto_execution_log_d_t_d e
-    ON m.model_id = e.model_id
-    AND m.information_date = e.information_date;
 
-CREATE OR REPLACE VIEW panopto_dashboard_model_summary AS
-SELECT
-    information_date,
-    model_id,
-    MAX(CASE WHEN var_type = 'score' THEN aggregate_status END) AS score_status,
-    MAX(CASE WHEN var_type = 'input' THEN aggregate_status END) AS input_status,
-    MAX(CASE WHEN var_type = 'raw' THEN aggregate_status END) AS raw_status,
-    MAX(CASE WHEN var_type = 'transformed' THEN aggregate_status END) AS transformed_status,
-    MAX(CASE WHEN var_type = 'SYSTEM' THEN aggregate_status END) AS system_status,
-    MAX(CASE WHEN execution_status = 'MISSING_DATA' THEN 1 ELSE 0 END) AS has_missing_data,
-    COUNT(DISTINCT var_type) AS var_types_evaluated
-FROM (
-    SELECT
-        a.information_date,
-        a.model_id,
-        a.var_type,
-        a.aggregate_status,
-        e.status AS execution_status
-    FROM panopto_alert_aggregate_d_t_d a
-    LEFT JOIN panopto_execution_log_d_t_d e
-        ON a.model_id = e.model_id
-        AND a.information_date = e.information_date
-) sub
-GROUP BY information_date, model_id;
-
-CREATE TABLE IF NOT EXISTS panopto_model_table_config_d_t_d (
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_model_table_config (
     table_role STRING,
     table_name STRING,
     source_type STRING,
@@ -354,11 +311,53 @@ CREATE TABLE IF NOT EXISTS panopto_model_table_config_d_t_d (
     sql_transform STRING,
     data_type STRING,
     partition_columns STRING,
+    reading_mode STRING,
     active BOOLEAN
 )
-PARTITIONED BY (process_date STRING, model_id STRING)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
 STORED AS PARQUET
-TBLPROPERTIES (
-    'parquet.compress' = 'SNAPPY',
-    'spark.sql.sources.partitionOverwriteMode' = 'dynamic'
-);
+;
+
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_email_config (
+    sender_name STRING,
+    sender_email STRING,
+    reply_to STRING,
+    subject_prefix STRING,
+    logo_url STRING,
+    active BOOLEAN
+)
+PARTITIONED BY (
+    process_date STRING,
+    model_id STRING
+)
+STORED AS PARQUET
+;
+
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_banamex_calendar (
+    calendar_date STRING,
+    is_business_day BOOLEAN,
+    is_holiday BOOLEAN,
+    holiday_name STRING,
+    sync_timestamp TIMESTAMP
+)
+STORED AS PARQUET
+;
+
+
+-- Tabla externa de calendario
+
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_banamex_calendar_ext_d (
+    calendar_date STRING,
+    is_business_day BOOLEAN,
+    is_holiday BOOLEAN,
+    holiday_name STRING,
+    sync_timestamp TIMESTAMP
+)
+STORED AS PARQUET
+;
+

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS banamex_calendar_sync_d (
     sync_timestamp TIMESTAMP NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS model_contact_d_t_d (
+CREATE TABLE IF NOT EXISTS model_contact (
     model_id TEXT NOT NULL,
     contact_email TEXT NOT NULL,
     contact_role TEXT,

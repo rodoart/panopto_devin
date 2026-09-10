@@ -36,7 +36,7 @@ def test_process_config_from_json_defaults(tmp_path):
     """ProcessConfig.from_json() uses class defaults for a missing file."""
     missing = tmp_path / "does_not_exist.json"
     cfg = ProcessConfig.from_json(str(missing))
-    assert cfg.model_summary_table == "model_summary_csi_psi_d_t_d"
+    assert cfg.model_summary_table == "gcprmsbx_work.panopto_model_summary_csi_psi"
     assert cfg.hdfs_staging_base == os.getenv("PANOPTO_HDFS_STAGING_BASE")
 
 

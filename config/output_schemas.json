@@ -1,242 +1,1119 @@
 {
-  "model_summary_csi_psi_d_t_d": [
-    {"name": "model_name", "type": "string", "nullable": true},
-    {"name": "model_description", "type": "string", "nullable": true},
-    {"name": "model_type", "type": "string", "nullable": true},
-    {"name": "status", "type": "string", "nullable": true},
-    {"name": "cut_off_probability", "type": "double", "nullable": true},
-    {"name": "frequency", "type": "string", "nullable": true},
-    {"name": "window_value", "type": "int", "nullable": true},
-    {"name": "window_unit", "type": "string", "nullable": true},
-    {"name": "trigger_csi_ambar", "type": "double", "nullable": true},
-    {"name": "trigger_csi_red", "type": "double", "nullable": true},
-    {"name": "trigger_csi_variation_ambar", "type": "double", "nullable": true},
-    {"name": "trigger_csi_variation_red", "type": "double", "nullable": true},
-    {"name": "score_alert_ambar_pct", "type": "double", "nullable": true},
-    {"name": "score_alert_red_pct", "type": "double", "nullable": true},
-    {"name": "score_red_equivalent", "type": "int", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "model_summary_csi_psi": [
+    {
+      "name": "model_name",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "model_description",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "model_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "cut_off_probability",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "frequency",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "window_value",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "window_unit",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "trigger_csi_ambar",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "trigger_csi_red",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "trigger_csi_variation_ambar",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "trigger_csi_variation_red",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "score_alert_ambar_pct",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "score_alert_red_pct",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "score_red_equivalent",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "csi_psi_table_d_t_d": [
-    {"name": "schema", "type": "string", "nullable": true},
-    {"name": "table_name", "type": "string", "nullable": true},
-    {"name": "type", "type": "string", "nullable": true},
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "bin", "type": "int", "nullable": true},
-    {"name": "bin_type", "type": "string", "nullable": true},
-    {"name": "category_value", "type": "string", "nullable": true},
-    {"name": "lb", "type": "double", "nullable": true},
-    {"name": "ub", "type": "double", "nullable": true},
-    {"name": "lower_bound_type", "type": "string", "nullable": true},
-    {"name": "upper_bound_type", "type": "string", "nullable": true},
-    {"name": "count_dev", "type": "int", "nullable": true},
-    {"name": "woe", "type": "double", "nullable": true},
-    {"name": "information_date_column", "type": "string", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "csi_psi_table": [
+    {
+      "name": "schema",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "table_name",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "bin",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "bin_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "category_value",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "lb",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "ub",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "lower_bound_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "upper_bound_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "count_dev",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "woe",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "information_date_column",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "tresholds_table_d_t_d": [
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "type", "type": "string", "nullable": true},
-    {"name": "psi_threshold_ambar", "type": "double", "nullable": true},
-    {"name": "psi_threshold_red", "type": "double", "nullable": true},
-    {"name": "psi_variation_threshold_ambar", "type": "double", "nullable": true},
-    {"name": "psi_variation_threshold_red", "type": "double", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "tresholds_table": [
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "psi_threshold_ambar",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "psi_threshold_red",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "psi_variation_threshold_ambar",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "psi_variation_threshold_red",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "alert_policy_d_t_d": [
-    {"name": "var_type", "type": "string", "nullable": true},
-    {"name": "red_equivalent", "type": "int", "nullable": true},
-    {"name": "alert_ambar_pct", "type": "double", "nullable": true},
-    {"name": "alert_red_pct", "type": "double", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "alert_policy": [
+    {
+      "name": "var_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "red_equivalent",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "alert_ambar_pct",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "alert_red_pct",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "category_policy_d_t_d": [
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "top_n_threshold", "type": "int", "nullable": true},
-    {"name": "critical_top_k", "type": "int", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "category_policy": [
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "top_n_threshold",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "critical_top_k",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "variable_metadata_d_t_d": [
-    {"name": "variable", "type": "string", "nullable": true, "description": "Nombre de la variable"},
-    {"name": "var_type", "type": "string", "nullable": true, "description": "Rol: raw, input, transformed, score, target"},
-    {"name": "data_type", "type": "string", "nullable": true, "description": "numeric o categorical"},
-    {"name": "source_table", "type": "string", "nullable": true, "description": "Nombre de tabla en table metadata (clave cruzada)"},
-    {"name": "source_column", "type": "string", "nullable": true, "description": "Columna física en la tabla fuente"},
-    {"name": "is_monotonic", "type": "boolean", "nullable": true, "description": "True si la variable es monótona"},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "variable_metadata": [
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true,
+      "description": "Nombre de la variable"
+    },
+    {
+      "name": "var_type",
+      "type": "string",
+      "nullable": true,
+      "description": "Rol: raw, input, transformed, score, target"
+    },
+    {
+      "name": "data_type",
+      "type": "string",
+      "nullable": true,
+      "description": "numeric o categorical"
+    },
+    {
+      "name": "source_table",
+      "type": "string",
+      "nullable": true,
+      "description": "Nombre de tabla en table metadata (clave cruzada)"
+    },
+    {
+      "name": "source_column",
+      "type": "string",
+      "nullable": true,
+      "description": "Columna física en la tabla fuente"
+    },
+    {
+      "name": "is_monotonic",
+      "type": "boolean",
+      "nullable": true,
+      "description": "True si la variable es monótona"
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "config_changelog_d_t_d": [
-    {"name": "change_timestamp", "type": "timestamp", "nullable": true},
-    {"name": "table_name", "type": "string", "nullable": true},
-    {"name": "change_type", "type": "string", "nullable": true},
-    {"name": "field_changed", "type": "string", "nullable": true},
-    {"name": "old_value", "type": "string", "nullable": true},
-    {"name": "new_value", "type": "string", "nullable": true},
-    {"name": "triggered_retraining", "type": "boolean", "nullable": true},
-    {"name": "error_message", "type": "string", "nullable": true},
-    {"name": "executed_by_dag_id", "type": "string", "nullable": true},
-    {"name": "run_id", "type": "string", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "config_changelog": [
+    {
+      "name": "change_timestamp",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "table_name",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "change_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "field_changed",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "old_value",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "new_value",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "triggered_retraining",
+      "type": "boolean",
+      "nullable": true
+    },
+    {
+      "name": "error_message",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "executed_by_dag_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "run_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "category_baseline_rank_d_t_d": [
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "category_value", "type": "string", "nullable": true},
-    {"name": "rank_dev", "type": "int", "nullable": true},
-    {"name": "freq_dev", "type": "double", "nullable": true},
-    {"name": "top_n_threshold", "type": "int", "nullable": true},
-    {"name": "critical_top_k", "type": "int", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "category_baseline_rank": [
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "category_value",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "rank_dev",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "freq_dev",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "top_n_threshold",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "critical_top_k",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "metric_threshold_auto_d_t_d": [
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "metric_name", "type": "string", "nullable": true},
-    {"name": "threshold_ambar", "type": "double", "nullable": true},
-    {"name": "threshold_red", "type": "double", "nullable": true},
-    {"name": "baseline_value", "type": "double", "nullable": true},
-    {"name": "baseline_std", "type": "double", "nullable": true},
-    {"name": "sample_size_dev", "type": "int", "nullable": true},
-    {"name": "calculation_method", "type": "string", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "metric_threshold_auto": [
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "metric_name",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "threshold_ambar",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "threshold_red",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "baseline_value",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "baseline_std",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "sample_size_dev",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "calculation_method",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_staging_control_d_t_d": [
-    {"name": "staging_id", "type": "string", "nullable": true},
-    {"name": "execution_id", "type": "string", "nullable": true},
-    {"name": "model_id", "type": "string", "nullable": true},
-    {"name": "target_table", "type": "string", "nullable": true},
-    {"name": "information_date", "type": "string", "nullable": true},
-    {"name": "temp_path", "type": "string", "nullable": true},
-    {"name": "final_path", "type": "string", "nullable": true},
-    {"name": "row_count_temp", "type": "int", "nullable": true},
-    {"name": "row_count_final", "type": "int", "nullable": true},
-    {"name": "status", "type": "string", "nullable": true},
-    {"name": "started_at", "type": "timestamp", "nullable": true},
-    {"name": "validated_at", "type": "timestamp", "nullable": true},
-    {"name": "promoted_at", "type": "timestamp", "nullable": true},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true}
+  "staging_control": [
+    {
+      "name": "staging_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "target_table",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "temp_path",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "final_path",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "row_count_temp",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "row_count_final",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "started_at",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "validated_at",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "promoted_at",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_metric_result_d_t_d": [
-    {"name": "execution_id", "type": "string", "nullable": true},
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "var_type", "type": "string", "nullable": true},
-    {"name": "metric_name", "type": "string", "nullable": true},
-    {"name": "metric_value", "type": "double", "nullable": true},
-    {"name": "baseline_value", "type": "double", "nullable": true},
-    {"name": "threshold_ambar", "type": "double", "nullable": true},
-    {"name": "threshold_red", "type": "double", "nullable": true},
-    {"name": "status", "type": "string", "nullable": true},
-    {"name": "baseline_process_date", "type": "string", "nullable": true},
-    {"name": "run_date", "type": "timestamp", "nullable": true},
-    {"name": "dag_id", "type": "string", "nullable": true},
-    {"name": "airflow_run_id", "type": "string", "nullable": true},
-    {"name": "information_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "metric_result": [
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "var_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "metric_name",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "metric_value",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "baseline_value",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "threshold_ambar",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "threshold_red",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "baseline_process_date",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "run_date",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "dag_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "airflow_run_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_alert_aggregate_d_t_d": [
-    {"name": "execution_id", "type": "string", "nullable": true},
-    {"name": "var_type", "type": "string", "nullable": true},
-    {"name": "total_metrics", "type": "int", "nullable": true},
-    {"name": "count_ambar", "type": "int", "nullable": true},
-    {"name": "count_red", "type": "int", "nullable": true},
-    {"name": "equivalent_yellow", "type": "double", "nullable": true},
-    {"name": "stress_ratio", "type": "double", "nullable": true},
-    {"name": "aggregate_status", "type": "string", "nullable": true},
-    {"name": "alert_sent", "type": "boolean", "nullable": true},
-    {"name": "alert_type", "type": "string", "nullable": true},
-    {"name": "red_equivalent_used", "type": "int", "nullable": true},
-    {"name": "alert_ambar_pct_used", "type": "double", "nullable": true},
-    {"name": "alert_red_pct_used", "type": "double", "nullable": true},
-    {"name": "run_date", "type": "timestamp", "nullable": true},
-    {"name": "information_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "alert_aggregate": [
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "var_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "total_metrics",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "count_ambar",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "count_red",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "equivalent_yellow",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "stress_ratio",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "aggregate_status",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "alert_sent",
+      "type": "boolean",
+      "nullable": true
+    },
+    {
+      "name": "alert_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "red_equivalent_used",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "alert_ambar_pct_used",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "alert_red_pct_used",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "run_date",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_execution_log_d_t_d": [
-    {"name": "execution_id", "type": "string", "nullable": true},
-    {"name": "dag_id", "type": "string", "nullable": true},
-    {"name": "airflow_run_id", "type": "string", "nullable": true},
-    {"name": "run_date", "type": "timestamp", "nullable": true},
-    {"name": "end_date", "type": "timestamp", "nullable": true},
-    {"name": "status", "type": "string", "nullable": true},
-    {"name": "error_message", "type": "string", "nullable": true},
-    {"name": "reason", "type": "string", "nullable": true},
-    {"name": "variables_expected", "type": "int", "nullable": true},
-    {"name": "variables_processed", "type": "int", "nullable": true},
-    {"name": "variables_missing", "type": "int", "nullable": true},
-    {"name": "metrics_calculated", "type": "int", "nullable": true},
-    {"name": "metrics_failed", "type": "int", "nullable": true},
-    {"name": "duration_seconds", "type": "int", "nullable": true},
-    {"name": "information_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "execution_log": [
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "dag_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "airflow_run_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "run_date",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "end_date",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "error_message",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "reason",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "variables_expected",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "variables_processed",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "variables_missing",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "metrics_calculated",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "metrics_failed",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "duration_seconds",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_email_log_d_t_d": [
-    {"name": "email_id", "type": "string", "nullable": true},
-    {"name": "execution_id", "type": "string", "nullable": true},
-    {"name": "alert_type", "type": "string", "nullable": true},
-    {"name": "recipients_to", "type": "string", "nullable": true},
-    {"name": "recipients_bcc", "type": "string", "nullable": true},
-    {"name": "subject", "type": "string", "nullable": true},
-    {"name": "body_summary", "type": "string", "nullable": true},
-    {"name": "sent_timestamp", "type": "timestamp", "nullable": true},
-    {"name": "status", "type": "string", "nullable": true},
-    {"name": "smtp_response", "type": "string", "nullable": true},
-    {"name": "retry_count", "type": "int", "nullable": true},
-    {"name": "information_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "email_log": [
+    {
+      "name": "email_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "alert_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "recipients_to",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "recipients_bcc",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "subject",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "body_summary",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "sent_timestamp",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "smtp_response",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "retry_count",
+      "type": "int",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_variable_summary_d_t_d": [
-    {"name": "execution_id", "type": "string", "nullable": true},
-    {"name": "variable", "type": "string", "nullable": true},
-    {"name": "var_type", "type": "string", "nullable": true},
-    {"name": "data_type", "type": "string", "nullable": true},
-    {"name": "statistic", "type": "string", "nullable": true},
-    {"name": "statistic_value", "type": "double", "nullable": true},
-    {"name": "statistic_value_str", "type": "string", "nullable": true},
-    {"name": "information_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "variable_summary": [
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "variable",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "var_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "data_type",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "statistic",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "statistic_value",
+      "type": "double",
+      "nullable": true
+    },
+    {
+      "name": "statistic_value_str",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_model_table_config_d_t_d": [
-    {"name": "table_role", "type": "string", "nullable": true, "description": "Rol: raw, input, processed, score, target"},
-    {"name": "table_name", "type": "string", "nullable": true, "description": "Alias corto de la tabla"},
-    {"name": "source_type", "type": "string", "nullable": true, "description": "HIVE o PARQUET"},
-    {"name": "source_schema", "type": "string", "nullable": true, "description": "Esquema Hive o None"},
-    {"name": "source_table", "type": "string", "nullable": true, "description": "Nombre físico con prefijo hive: o parquet:"},
-    {"name": "entity_key_columns", "type": "string", "nullable": true, "description": "JSON con llaves de la fuente"},
-    {"name": "canonical_key_columns", "type": "string", "nullable": true, "description": "JSON con llaves unificadas"},
-    {"name": "date_column", "type": "string", "nullable": true, "description": "Columna de fecha de información"},
-    {"name": "date_format", "type": "string", "nullable": true, "description": "Formato strptime de la fecha, ej. %Y-%m-%d"},
-    {"name": "history_months", "type": "int", "nullable": true, "description": "Ventana histórica para baseline"},
-    {"name": "lag", "type": "int", "nullable": true, "description": "Meses de lag del baseline"},
-    {"name": "sql_transform", "type": "string", "nullable": true, "description": "Transformación SQL a aplicar en selectExpr"},
-    {"name": "data_type", "type": "string", "nullable": true, "description": "numeric o categorical"},
-    {"name": "partition_columns", "type": "string", "nullable": true, "description": "JSON con columnas de partición"},
-    {"name": "reading_mode", "type": "string", "nullable": true, "description": "each, first o last"},
-    {"name": "active", "type": "boolean", "nullable": true, "description": "True si la configuración está activa"},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "model_table_config": [
+    {
+      "name": "table_role",
+      "type": "string",
+      "nullable": true,
+      "description": "Rol: raw, input, processed, score, target"
+    },
+    {
+      "name": "table_name",
+      "type": "string",
+      "nullable": true,
+      "description": "Alias corto de la tabla"
+    },
+    {
+      "name": "source_type",
+      "type": "string",
+      "nullable": true,
+      "description": "HIVE o PARQUET"
+    },
+    {
+      "name": "source_schema",
+      "type": "string",
+      "nullable": true,
+      "description": "Esquema Hive o None"
+    },
+    {
+      "name": "source_table",
+      "type": "string",
+      "nullable": true,
+      "description": "Nombre físico con prefijo hive: o parquet:"
+    },
+    {
+      "name": "entity_key_columns",
+      "type": "string",
+      "nullable": true,
+      "description": "JSON con llaves de la fuente"
+    },
+    {
+      "name": "canonical_key_columns",
+      "type": "string",
+      "nullable": true,
+      "description": "JSON con llaves unificadas"
+    },
+    {
+      "name": "date_column",
+      "type": "string",
+      "nullable": true,
+      "description": "Columna de fecha de información"
+    },
+    {
+      "name": "date_format",
+      "type": "string",
+      "nullable": true,
+      "description": "Formato strptime de la fecha, ej. %Y-%m-%d"
+    },
+    {
+      "name": "history_months",
+      "type": "int",
+      "nullable": true,
+      "description": "Ventana histórica para baseline"
+    },
+    {
+      "name": "lag",
+      "type": "int",
+      "nullable": true,
+      "description": "Meses de lag del baseline"
+    },
+    {
+      "name": "sql_transform",
+      "type": "string",
+      "nullable": true,
+      "description": "Transformación SQL a aplicar en selectExpr"
+    },
+    {
+      "name": "data_type",
+      "type": "string",
+      "nullable": true,
+      "description": "numeric o categorical"
+    },
+    {
+      "name": "partition_columns",
+      "type": "string",
+      "nullable": true,
+      "description": "JSON con columnas de partición"
+    },
+    {
+      "name": "reading_mode",
+      "type": "string",
+      "nullable": true,
+      "description": "each, first o last"
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "nullable": true,
+      "description": "True si la configuración está activa"
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "panopto_email_config_d_t_d": [
-    {"name": "sender_name", "type": "string", "nullable": true, "description": "Nombre del remitente"},
-    {"name": "sender_email", "type": "string", "nullable": true, "description": "Dirección del remitente"},
-    {"name": "reply_to", "type": "string", "nullable": true, "description": "Reply-To"},
-    {"name": "subject_prefix", "type": "string", "nullable": true, "description": "Prefijo del asunto"},
-    {"name": "logo_url", "type": "string", "nullable": true, "description": "URL del logo"},
-    {"name": "active", "type": "boolean", "nullable": true, "description": "True si la config está activa"},
-    {"name": "process_date", "type": "string", "nullable": true, "partition": true},
-    {"name": "model_id", "type": "string", "nullable": true, "partition": true}
+  "email_config": [
+    {
+      "name": "sender_name",
+      "type": "string",
+      "nullable": true,
+      "description": "Nombre del remitente"
+    },
+    {
+      "name": "sender_email",
+      "type": "string",
+      "nullable": true,
+      "description": "Dirección del remitente"
+    },
+    {
+      "name": "reply_to",
+      "type": "string",
+      "nullable": true,
+      "description": "Reply-To"
+    },
+    {
+      "name": "subject_prefix",
+      "type": "string",
+      "nullable": true,
+      "description": "Prefijo del asunto"
+    },
+    {
+      "name": "logo_url",
+      "type": "string",
+      "nullable": true,
+      "description": "URL del logo"
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "nullable": true,
+      "description": "True si la config está activa"
+    },
+    {
+      "name": "process_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ],
-  "banamex_calendar_d_t_d": [
-    {"name": "calendar_date", "type": "string", "nullable": true},
-    {"name": "is_business_day", "type": "boolean", "nullable": true},
-    {"name": "is_holiday", "type": "boolean", "nullable": true},
-    {"name": "holiday_name", "type": "string", "nullable": true},
-    {"name": "sync_timestamp", "type": "timestamp", "nullable": true}
+  "banamex_calendar": [
+    {
+      "name": "calendar_date",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "is_business_day",
+      "type": "boolean",
+      "nullable": true
+    },
+    {
+      "name": "is_holiday",
+      "type": "boolean",
+      "nullable": true
+    },
+    {
+      "name": "holiday_name",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "sync_timestamp",
+      "type": "timestamp",
+      "nullable": true
+    }
   ]
 }
