@@ -18,7 +18,10 @@ CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_model_summary_csi_psi (
     trigger_csi_variation_red DOUBLE,
     score_alert_ambar_pct DOUBLE,
     score_alert_red_pct DOUBLE,
-    score_red_equivalent INT
+    score_red_equivalent INT,
+    execution_monthly_day INT -- Día del mes (1-31) en que se espera la carga para frecuencia mensual,
+    execution_weekday INT -- Día de la semana (0=Lunes) en que se espera la carga para frecuencia semanal,
+    target_lag_months INT -- Meses de desfase con los que la target está disponible
 )
 PARTITIONED BY (
     process_date STRING,
@@ -96,12 +99,12 @@ STORED AS PARQUET
 
 
 CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_variable_metadata (
-    variable STRING,
-    var_type STRING,
-    data_type STRING,
-    source_table STRING,
-    source_column STRING,
-    is_monotonic BOOLEAN
+    variable STRING -- Nombre de la variable,
+    var_type STRING -- Rol: raw, input, transformed, score, target,
+    data_type STRING -- numeric o categorical,
+    source_table STRING -- Nombre de tabla en table metadata (clave cruzada),
+    source_column STRING -- Columna física en la tabla fuente,
+    is_monotonic BOOLEAN -- True si la variable es monótona
 )
 PARTITIONED BY (
     process_date STRING,
@@ -297,22 +300,22 @@ STORED AS PARQUET
 
 
 CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_model_table_config (
-    table_role STRING,
-    table_name STRING,
-    source_type STRING,
-    source_schema STRING,
-    source_table STRING,
-    entity_key_columns STRING,
-    canonical_key_columns STRING,
-    date_column STRING,
-    date_format STRING,
-    history_months INT,
-    lag INT,
-    sql_transform STRING,
-    data_type STRING,
-    partition_columns STRING,
-    reading_mode STRING,
-    active BOOLEAN
+    table_role STRING -- Rol: raw, input, processed, score, target,
+    table_name STRING -- Alias corto de la tabla,
+    source_type STRING -- HIVE o PARQUET,
+    source_schema STRING -- Esquema Hive o None,
+    source_table STRING -- Nombre físico con prefijo hive: o parquet:,
+    entity_key_columns STRING -- JSON con llaves de la fuente,
+    canonical_key_columns STRING -- JSON con llaves unificadas,
+    date_column STRING -- Columna de fecha de información,
+    date_format STRING -- Formato strptime de la fecha, ej. %Y-%m-%d,
+    history_months INT -- Ventana histórica para baseline,
+    lag INT -- Meses de lag del baseline,
+    sql_transform STRING -- Transformación SQL a aplicar en selectExpr,
+    data_type STRING -- numeric o categorical,
+    partition_columns STRING -- JSON con columnas de partición,
+    reading_mode STRING -- each, first o last,
+    active BOOLEAN -- True si la configuración está activa
 )
 PARTITIONED BY (
     process_date STRING,
@@ -323,12 +326,12 @@ STORED AS PARQUET
 
 
 CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_email_config (
-    sender_name STRING,
-    sender_email STRING,
-    reply_to STRING,
-    subject_prefix STRING,
-    logo_url STRING,
-    active BOOLEAN
+    sender_name STRING -- Nombre del remitente,
+    sender_email STRING -- Dirección del remitente,
+    reply_to STRING -- Reply-To,
+    subject_prefix STRING -- Prefijo del asunto,
+    logo_url STRING -- URL del logo,
+    active BOOLEAN -- True si la config está activa
 )
 PARTITIONED BY (
     process_date STRING,

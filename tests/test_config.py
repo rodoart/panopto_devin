@@ -55,3 +55,13 @@ def test_process_config_from_json_values_and_env_override(tmp_path, monkeypatch)
     assert cfg.model_summary_table == "custom_summary"
     assert cfg.hdfs_staging_base == "/env/staging"
     assert cfg.hive_warehouse_dir == "/env/warehouse"
+
+
+def test_output_schemas_qualified_lookup():
+    """OutputSchemas normaliza nombres calificados (gcprmsbx_work.panopto_*)."""
+    from panopto.config.schemas import OutputSchemas
+
+    schemas = OutputSchemas()
+    short = schemas.get("email_log")
+    qualified = schemas.get("gcprmsbx_work.panopto_email_log")
+    assert short == qualified

@@ -2,6 +2,7 @@
 
 import pytest
 
+from panopto.config.model_tables import ModelTableConfig
 from panopto.data.sources import DataSourceSpec
 
 
@@ -59,3 +60,31 @@ def test_default_source_type_is_hive():
     assert spec.source_type == "HIVE"
     assert spec.schema == "my_schema"
     assert spec.table_or_path == "my_table"
+
+
+def test_data_source_spec_from_model_table():
+    """DataSourceSpec can be built from a ModelTableConfig without a URI prefix."""
+    cfg = ModelTableConfig(
+        table_role="score",
+        table_name="score_1079",
+        source_type="HIVE",
+        source_schema="gcprmsbx_work",
+        source_table="gcprmsbx_work.score_1079",
+        entity_key_columns=["customer_id"],
+        canonical_key_columns=["customer_id"],
+        date_column="information_date",
+        date_format="",
+        history_months=3,
+        lag=0,
+        sql_transform="",
+        data_type="",
+        partition_columns=["information_date"],
+        reading_mode="each",
+    )
+    spec = DataSourceSpec.from_model_table(cfg, "score", "information_date")
+    assert spec.source_type == "HIVE"
+    assert spec.schema == "gcprmsbx_work"
+    assert spec.table_or_path == "score_1079"
+    assert spec.column == "score"
+    assert spec.canonical_keys == ["customer_id"]
+    assert spec.partition_columns == ["information_date"]

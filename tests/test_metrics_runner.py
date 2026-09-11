@@ -1,5 +1,6 @@
 """Tests for MetricRunner orchestration."""
 
+import calendar as cal
 import datetime as dt
 from typing import Any, List, Optional
 
@@ -35,7 +36,15 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
 
     # model_summary: model metadata and cutoff.
     spark.createDataFrame(
-        [Row(model_id=model_id, process_date="2025-01-01", cut_off_probability=0.5, frequency="daily")]
+        [
+            Row(
+                model_id=model_id,
+                process_date="2025-01-01",
+                cut_off_probability=0.5,
+                frequency="daily",
+                target_lag_months=0,
+            )
+        ]
     ).createOrReplaceTempView(PROCESS_CONFIG.model_summary_table)
 
     # variable_metadata: variables to process.
@@ -44,11 +53,8 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             variable="score",
             var_type="score",
             data_type="numeric",
-            reading_mode="each",
-            information_date_column="info_date_score",
-            source_table="hive:scores",
+            source_table="scores",
             source_column="score",
-            partition_columns="[]",
             process_date="2025-01-01",
             model_id=model_id,
         ),
@@ -56,11 +62,8 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             variable="target",
             var_type="target",
             data_type="numeric",
-            reading_mode="each",
-            information_date_column="info_date_target",
-            source_table="hive:targets",
+            source_table="targets",
             source_column="target",
-            partition_columns="[]",
             process_date="2025-01-01",
             model_id=model_id,
         ),
@@ -68,11 +71,8 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             variable="age",
             var_type="input",
             data_type="numeric",
-            reading_mode="each",
-            information_date_column="information_date",
-            source_table="hive:raw",
+            source_table="raw",
             source_column="age",
-            partition_columns="[]",
             process_date="2025-01-01",
             model_id=model_id,
         ),
@@ -80,16 +80,78 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             variable="category",
             var_type="input",
             data_type="categorical",
-            reading_mode="each",
-            information_date_column="information_date",
-            source_table="hive:raw",
+            source_table="raw",
             source_column="category",
-            partition_columns="[]",
             process_date="2025-01-01",
             model_id=model_id,
         ),
     ]
     spark.createDataFrame(metadata).createOrReplaceTempView(PROCESS_CONFIG.variable_metadata_table)
+
+    # model_table_config: table metadata so MetricRunner can build DataSourceSpec.
+    table_config = [
+        Row(
+            table_role="score",
+            table_name="score",
+            source_type="HIVE",
+            source_table="scores",
+            source_schema=None,
+            entity_key_columns='["customer_id"]',
+            canonical_key_columns='["customer_id"]',
+            date_column="info_date_score",
+            date_format="",
+            history_months=1,
+            lag=0,
+            sql_transform="",
+            data_type="",
+            partition_columns="[]",
+            reading_mode="each",
+            active=True,
+            process_date="2025-01-01",
+            model_id=model_id,
+        ),
+        Row(
+            table_role="target",
+            table_name="target",
+            source_type="HIVE",
+            source_table="targets",
+            source_schema=None,
+            entity_key_columns='["customer_id"]',
+            canonical_key_columns='["customer_id"]',
+            date_column="info_date_target",
+            date_format="",
+            history_months=1,
+            lag=0,
+            sql_transform="",
+            data_type="",
+            partition_columns="[]",
+            reading_mode="each",
+            active=True,
+            process_date="2025-01-01",
+            model_id=model_id,
+        ),
+        Row(
+            table_role="raw",
+            table_name="raw",
+            source_type="HIVE",
+            source_table="raw",
+            source_schema=None,
+            entity_key_columns='["customer_id"]',
+            canonical_key_columns='["customer_id"]',
+            date_column="information_date",
+            date_format="",
+            history_months=1,
+            lag=0,
+            sql_transform="",
+            data_type="",
+            partition_columns="[]",
+            reading_mode="each",
+            active=True,
+            process_date="2025-01-01",
+            model_id=model_id,
+        ),
+    ]
+    spark.createDataFrame(table_config).createOrReplaceTempView(PROCESS_CONFIG.model_table_config_table)
 
     # Bins for score used by psi_approved / psi_rejected / psi_canonical.
     score_bins = numeric_bins(sample_data["score_baseline"], "score", n_bins=10)
@@ -137,6 +199,14 @@ class FakeCalendar:
 
     def last_business_day_of_period(self, calendar_date: Any, period: str) -> str:
         return "2025-01-30"
+
+    def shift_months(self, calendar_date: Any, months: int) -> str:
+        d = dt.date.fromisoformat(calendar_date) if isinstance(calendar_date, str) else calendar_date
+        month = d.month - 1 + months
+        year = d.year + month // 12
+        month = month % 12 + 1
+        day = min(d.day, cal.monthrange(year, month)[1])
+        return dt.date(year, month, day).isoformat()
 
 
 def test_metric_runner_period_dates(spark: SparkSession):
@@ -230,3 +300,28 @@ def test_metric_runner_reuses_checkpoint(spark: SparkSession, sample_data: dict,
     )
     assert len(results2) == len(results1)
     assert {r.metric_name for r in results2} == {r.metric_name for r in results1}
+
+
+def test_metric_runner_target_lag_shifts_target_date(spark: SparkSession, sample_data: dict, checkpoint):
+    """Con target_lag_months > 0 el runner lee la target de una fecha pasada."""
+    _create_mock_tables(spark, sample_data)
+    spark.createDataFrame(
+        [
+            Row(
+                model_id="M1",
+                process_date="2025-01-01",
+                cut_off_probability=0.5,
+                frequency="daily",
+                target_lag_months=1,
+            )
+        ]
+    ).createOrReplaceTempView(PROCESS_CONFIG.model_summary_table)
+    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
+    with pytest.raises(MissingDataError) as exc_info:
+        runner.run(
+            model_id="M1",
+            information_date="2025-01-01",
+            execution_id="exec_001",
+            baseline_date="2025-01-02",
+        )
+    assert "2024-12-01" in str(exc_info.value)

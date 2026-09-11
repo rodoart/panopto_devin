@@ -144,6 +144,7 @@ class MetricRunner:
         input_numeric = []
 
         frequency = str(model_summary.get("frequency", "daily"))
+        target_lag_months = int(model_summary.get("target_lag_months") or 0)
         for row in variables:
             var = row["variable"]
             var_type = row["var_type"]
@@ -164,9 +165,13 @@ class MetricRunner:
             current_dates, baseline_dates = self._resolve_dates(
                 information_date, baseline_date, reading_mode, frequency
             )
+            if var_type == "target" and target_lag_months > 0:
+                current_dates = [self.calendar.shift_months(d, -target_lag_months) for d in current_dates]
+                if baseline_dates:
+                    baseline_dates = [self.calendar.shift_months(d, -target_lag_months) for d in baseline_dates]
             current, baseline = self._read_data(spec, var, current_dates, baseline_dates)
             if current.count() == 0:
-                raise MissingDataError(f"no data for {var} on {information_date}")
+                raise MissingDataError(f"no data for {var} on {current_dates[0]}")
             self.summaries.extend(
                 VariableSummaryBuilder.build(
                     current,

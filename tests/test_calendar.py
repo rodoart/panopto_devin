@@ -67,3 +67,36 @@ def test_expected_information_date_weekly(postgres_connection):
     postgres_connection.set_results([(dt.date(2025, 1, 10),)])
     calendar = BanamexCalendar()
     assert calendar.expected_information_date("weekly", dt.date(2025, 1, 12)) == "2025-01-10"
+
+
+def test_shift_months():
+    """shift_months avanza o retrocede meses respetando los días del mes."""
+    calendar = BanamexCalendar()
+    assert calendar.shift_months("2025-01-15", 1) == "2025-02-15"
+    assert calendar.shift_months("2025-01-15", -1) == "2024-12-15"
+    assert calendar.shift_months("2025-01-31", 1) == "2025-02-28"
+
+
+def test_expected_information_date_monthly_with_execution_day(postgres_connection):
+    """Con execution_monthly_day, expected_information_date toma el día de ejecución."""
+    postgres_connection.set_results([(dt.date(2025, 1, 15),)])
+    calendar = BanamexCalendar()
+    assert calendar.expected_information_date(
+        "monthly", dt.date(2025, 1, 12), execution_monthly_day=15
+    ) == "2025-01-15"
+
+
+def test_expected_information_date_weekly_with_execution_day(postgres_connection):
+    """Con execution_weekday, expected_information_date toma el día de la semana de ejecución."""
+    postgres_connection.set_results([(dt.date(2025, 1, 8),)])
+    calendar = BanamexCalendar()
+    assert calendar.expected_information_date(
+        "weekly", dt.date(2025, 1, 6), execution_weekday=2
+    ) == "2025-01-08"
+
+
+def test_first_business_day_on_or_after(postgres_connection):
+    """first_business_day_on_or_after devuelve el primer día hábil >= la fecha dada."""
+    postgres_connection.set_results([(dt.date(2025, 1, 2),)])
+    calendar = BanamexCalendar()
+    assert calendar.first_business_day_on_or_after("2025-01-01") == "2025-01-02"

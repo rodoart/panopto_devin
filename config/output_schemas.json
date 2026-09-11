@@ -76,6 +76,24 @@
       "nullable": true
     },
     {
+      "name": "execution_monthly_day",
+      "type": "int",
+      "nullable": true,
+      "description": "Día del mes (1-31) en que se espera la carga para frecuencia mensual"
+    },
+    {
+      "name": "execution_weekday",
+      "type": "int",
+      "nullable": true,
+      "description": "Día de la semana (0=Lunes) en que se espera la carga para frecuencia semanal"
+    },
+    {
+      "name": "target_lag_months",
+      "type": "int",
+      "nullable": true,
+      "description": "Meses de desfase con los que la target está disponible"
+    },
+    {
       "name": "process_date",
       "type": "string",
       "nullable": true,

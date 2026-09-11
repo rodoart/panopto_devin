@@ -1,7 +1,7 @@
 process_date,model_id,variable,var_type,data_type,source_table,source_column,is_monotonic
-2025-10-15,1079_cta_lvl,mean_var_1_6m,raw,numeric,hive:gcprmsbx_work.raw_1079,mean_var_1_6m,false
-2025-10-15,1079_cta_lvl,category_city,raw,categorical,hive:gcprmsbx_work.raw_1079,category_city,false
-2025-10-15,1079_cta_lvl,input_var_a,input,numeric,hive:gcprmsbx_work.input_1079,input_var_a,false
-2025-10-15,1079_cta_lvl,transformed_var_a,transformed,numeric,hive:gcprmsbx_work.transformed_1079,transformed_var_a,false
-2025-10-15,1079_cta_lvl,score,score,numeric,parquet:/data/parquets/score_1079,score,false
-2025-10-15,1079_cta_lvl,target,target,binary,hive:gcprmsbx_work.target_1079,target,false
+2025-10-15,1079_cta_lvl,mean_var_1_6m,raw,numeric,gcprmsbx_work.raw_1079,mean_var_1_6m,false
+2025-10-15,1079_cta_lvl,category_city,raw,categorical,gcprmsbx_work.raw_1079,category_city,false
+2025-10-15,1079_cta_lvl,input_var_a,input,numeric,gcprmsbx_work.input_1079,input_var_a,false
+2025-10-15,1079_cta_lvl,transformed_var_a,transformed,numeric,gcprmsbx_work.transformed_1079,transformed_var_a,false
+2025-10-15,1079_cta_lvl,score,score,numeric,/data/parquets/score_1079,score,false
+2025-10-15,1079_cta_lvl,target,target,binary,gcprmsbx_work.target_1079,target,false
