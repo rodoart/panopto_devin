@@ -142,10 +142,12 @@ class MetricRunner:
         target_baseline = None
         score_col_name = None
         target_col_name = None
+        score_spec = None
+        score_table_config = None
+        target_table_lag = 0
         input_numeric = []
 
         frequency = str(model_summary.get("frequency", "daily"))
-        target_lag_months = int(model_summary.get("target_lag_months") or 0)
         for row in variables:
             var = row["variable"]
             var_type = row["var_type"]
@@ -167,13 +169,9 @@ class MetricRunner:
                 information_date,
                 reading_mode,
                 frequency,
-                lag=table_config.lag if table_config.lag is not None else 1,
+                lag=table_config.lag if table_config.lag is not None else 0,
                 use_business_days=table_config.use_business_days,
             )
-            if var_type == "target" and target_lag_months > 0:
-                current_dates = [self.calendar.shift_months(d, -target_lag_months) for d in current_dates]
-                if baseline_dates:
-                    baseline_dates = [self.calendar.shift_months(d, -target_lag_months) for d in baseline_dates]
             current, baseline = self._read_data(spec, var, current_dates, baseline_dates)
             if current.count() == 0:
                 raise MissingDataError(f"no data for {var} on {current_dates[0]}")
@@ -194,10 +192,13 @@ class MetricRunner:
                 score_df = current
                 score_baseline = baseline
                 score_col_name = var
+                score_spec = spec
+                score_table_config = table_config
             if var_type == "target":
                 target_df = current
                 target_baseline = baseline
                 target_col_name = var
+                target_table_lag = table_config.lag if table_config.lag is not None else 0
             metrics = self._metrics_for_variable(var_type, data_type)
             for metric_name in metrics:
                 if metric_name in NEEDS_BASELINE_DATA and baseline is None:
@@ -237,11 +238,22 @@ class MetricRunner:
                     logger.warning(f"metric {metric_name} failed for {var}: {exc}")
                     continue
 
-        if score_df is not None and target_df is not None and score_col_name and target_col_name:
-            joined = self._join_conjugate(score_df, target_df, score_col_name, target_col_name)
+        if score_df is not None and target_df is not None and score_col_name and target_col_name and score_table_config and score_spec:
+            # Para el join conjugado, el score debe estar al mismo lag que la target.
+            target_score_current, target_score_baseline = self._resolve_dates(
+                information_date,
+                str(score_table_config.reading_mode or "each"),
+                frequency,
+                lag=target_table_lag,
+                use_business_days=score_table_config.use_business_days,
+            )
+            score_df_for_target, score_baseline_for_target = self._read_data(
+                score_spec, score_col_name, target_score_current, target_score_baseline
+            )
+            joined = self._join_conjugate(score_df_for_target, target_df, score_col_name, target_col_name)
             baseline_joined = None
-            if score_baseline is not None and target_baseline is not None:
-                baseline_joined = self._join_conjugate(score_baseline, target_baseline, score_col_name, target_col_name)
+            if score_baseline_for_target is not None and target_baseline is not None:
+                baseline_joined = self._join_conjugate(score_baseline_for_target, target_baseline, score_col_name, target_col_name)
             for metric_name in ("auc", "gini", "brier_score", "lift_top_decile", "calibration_slope", "ks_score_target"):
                 thresholds = self._thresholds_for(
                     "__SCORE__",
@@ -409,10 +421,10 @@ class MetricRunner:
     ) -> List[str]:
         """Helper interno que realiza la operación "period_dates"."""
         period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
-        if reading_mode == "first":
-            return [self.calendar.first_day_of_period(reference_date, period)]
-        if reading_mode == "last":
-            return [self.calendar.last_day_of_period(reference_date, period)]
+        if reading_mode in ("first", "last"):
+            # Para periodos con un único registro (mensual/semanal) se lee la fecha
+            # de ejecución; first/last son equivalentes en ese caso.
+            return [reference_date]
         if reading_mode == "each":
             if use_business_days:
                 return self.calendar.business_days_of_period(reference_date, period)
@@ -438,12 +450,13 @@ class MetricRunner:
         information_date: str,
         reading_mode: str,
         frequency: str,
-        lag: int = 1,
+        lag: int = 0,
         use_business_days: bool = True,
     ) -> Tuple[Any, ...]:
         """Helper interno que resuelve dates."""
-        current_dates = self._period_dates(information_date, reading_mode, frequency, use_business_days)
-        baseline_ref = self._period_reference(information_date, frequency, periods=lag)
+        current_ref = self._period_reference(information_date, frequency, periods=lag)
+        baseline_ref = self._period_reference(current_ref, frequency, periods=1)
+        current_dates = self._period_dates(current_ref, reading_mode, frequency, use_business_days)
         baseline_dates = self._period_dates(baseline_ref, reading_mode, frequency, use_business_days)
         return current_dates, baseline_dates
 

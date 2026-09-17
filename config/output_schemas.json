@@ -88,12 +88,6 @@
       "description": "Día de la semana (0=Lunes) en que se espera la carga para frecuencia semanal"
     },
     {
-      "name": "target_lag_months",
-      "type": "int",
-      "nullable": true,
-      "description": "Meses de desfase con los que la target está disponible"
-    },
-    {
       "name": "process_date",
       "type": "string",
       "nullable": true,

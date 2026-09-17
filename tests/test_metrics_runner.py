@@ -42,7 +42,6 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
                 process_date="2025-01-01",
                 cut_off_probability=0.5,
                 frequency="daily",
-                target_lag_months=0,
             )
         ]
     ).createOrReplaceTempView(PROCESS_CONFIG.model_summary_table)
@@ -238,8 +237,8 @@ def test_metric_runner_period_dates(spark: SparkSession):
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
 
     assert runner._period_dates("2025-01-15", "each", "daily") == ["2025-01-15"]
-    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-01"]
-    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-31"]
+    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-15"]
+    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-15"]
     assert runner._period_dates("2025-01-15", "each", "monthly", use_business_days=False) == FakeCalendar().all_days_of_period("2025-01-15", "month")
 
 
@@ -250,18 +249,18 @@ def test_metric_runner_resolve_dates_with_lag(spark: SparkSession):
     assert current == ["2025-01-15"]
     assert baseline == ["2025-01-14"]
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly", lag=2)
-    assert current == ["2025-01-01"]
-    # Reference -2 meses: 2024-11-15; fake calendar devuelve primer día fijo.
-    assert baseline == ["2025-01-01"]
+    assert current == ["2025-01-15"]
+    # Reference -2 meses: 2024-11-15.
+    assert baseline == ["2024-11-15"]
 
 
 def test_metric_runner_resolve_dates_first_monthly(spark: SparkSession):
     """_resolve_dates for first/last modes uses the previous period."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly")
-    assert current == ["2025-01-01"]
-    # Default lag=1: previous period is 2024-12-15; fake calendar returns fixed first calendar day.
-    assert baseline == ["2025-01-01"]
+    assert current == ["2025-01-15"]
+    # Default lag=1: reference -1 mes = 2024-12-15.
+    assert baseline == ["2024-12-15"]
 
 
 def test_metric_runner_period_dates_calendar_days(spark: SparkSession):
@@ -278,9 +277,9 @@ def test_metric_runner_resolve_dates_calendar_days(spark: SparkSession):
     assert current == ["2025-01-15"]
     assert baseline == ["2025-01-14"]
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly", use_business_days=False)
-    assert current == ["2025-01-01"]
-    # Default lag=1: previous period is 2024-12-15; fake calendar returns fixed first calendar day.
-    assert baseline == ["2025-01-01"]
+    assert current == ["2025-01-15"]
+    # Default lag=1: reference -1 mes = 2024-12-15.
+    assert baseline == ["2024-12-15"]
 
 
 def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_data: dict, checkpoint):
@@ -342,26 +341,3 @@ def test_metric_runner_reuses_checkpoint(spark: SparkSession, sample_data: dict,
     assert {r.metric_name for r in results2} == {r.metric_name for r in results1}
 
 
-def test_metric_runner_target_lag_shifts_target_date(spark: SparkSession, sample_data: dict, checkpoint):
-    """Con target_lag_months > 0 el runner lee la target de una fecha pasada."""
-    _create_mock_tables(spark, sample_data)
-    spark.createDataFrame(
-        [
-            Row(
-                model_id="M1",
-                process_date="2025-01-01",
-                cut_off_probability=0.5,
-                frequency="daily",
-                target_lag_months=1,
-            )
-        ]
-    ).createOrReplaceTempView(PROCESS_CONFIG.model_summary_table)
-    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
-    with pytest.raises(MissingDataError) as exc_info:
-        runner.run(
-            model_id="M1",
-            information_date="2025-01-01",
-            execution_id="exec_001",
-            baseline_date="2025-01-02",
-        )
-    assert "2024-12-01" in str(exc_info.value)

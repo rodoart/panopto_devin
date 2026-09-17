@@ -30,7 +30,6 @@ MODEL: Dict[str, Any] = {
         "window_unit": "weeks",
         "execution_monthly_day": 15,
         "execution_weekday": 0,
-        "target_lag_months": 0,
         "trigger_csi_ambar": 0.1,
         "trigger_csi_red": 0.2,
         "trigger_csi_variation_ambar": 0.05,

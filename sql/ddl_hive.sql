@@ -20,8 +20,7 @@ CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_model_summary_csi_psi (
     score_alert_red_pct DOUBLE,
     score_red_equivalent INT,
     execution_monthly_day INT -- Día del mes (1-31) en que se espera la carga para frecuencia mensual,
-    execution_weekday INT -- Día de la semana (0=Lunes) en que se espera la carga para frecuencia semanal,
-    target_lag_months INT -- Meses de desfase con los que la target está disponible
+    execution_weekday INT -- Día de la semana (0=Lunes) en que se espera la carga para frecuencia semanal
 )
 PARTITIONED BY (
     process_date STRING,

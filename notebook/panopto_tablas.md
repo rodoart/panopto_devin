@@ -82,7 +82,7 @@ Configuración del remitente y prefijo de correos. Se usa `model_id=global` para
 Ruta Spark: `gcprmsbx_work.panopto_model_summary_csi_psi`
 
 
-Resumen del modelo: nombre, tipo, cut_off, frecuencia, ventana, día de ejecución y desfase de target.
+Resumen del modelo: nombre, tipo, cut_off, frecuencia, ventana, día de ejecución.
 
 
 | Campo | Tipo | Descripción |
@@ -104,7 +104,6 @@ Resumen del modelo: nombre, tipo, cut_off, frecuencia, ventana, día de ejecuci�
 | `score_red_equivalent` | int |  |
 | `execution_monthly_day` | int | Día del mes (1-31) en que se espera la carga para frecuencia mensual |
 | `execution_weekday` | int | Día de la semana (0=Lunes) en que se espera la carga para frecuencia semanal |
-| `target_lag_months` | int | Meses de desfase con los que la target está disponible |
 | `process_date` | string |  |
 | `model_id` | string |  |
 

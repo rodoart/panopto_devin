@@ -102,16 +102,9 @@ class TrainingMode:
         reading_dates: List[str] = []
 
         for ref in history_refs:
-            if reading_mode == "first":
-                if table_config.use_business_days:
-                    reading_dates.append(self.calendar.first_business_day_of_period(ref, period))
-                else:
-                    reading_dates.append(self.calendar.first_day_of_period(ref, period))
-            elif reading_mode == "last":
-                if table_config.use_business_days:
-                    reading_dates.append(self.calendar.last_business_day_of_period(ref, period))
-                else:
-                    reading_dates.append(self.calendar.last_day_of_period(ref, period))
+            if reading_mode in ("first", "last"):
+                # first/last leen el único registro disponible del periodo (fecha de ejecución).
+                reading_dates.append(ref)
             elif reading_mode == "each":
                 if table_config.use_business_days:
                     reading_dates.extend(self.calendar.business_days_of_period(ref, period))

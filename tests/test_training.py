@@ -59,7 +59,6 @@ def _create_training_tables(spark, sample_data, model_id="M1"):
                 "window_unit": "weeks",
                 "execution_monthly_day": None,
                 "execution_weekday": None,
-                "target_lag_months": 0,
                 "process_date": "2025-01-01",
                 "model_id": model_id,
             }
