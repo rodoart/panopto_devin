@@ -188,3 +188,13 @@ class BanamexCalendar:
             return row[0].isoformat()
         d = self._to_date(calendar_date)
         return d.isoformat()
+
+    def first_day_of_period(self, calendar_date: Any, period: str) -> str:
+        """Primer día calendario del periodo (sin validar días hábiles)."""
+        start, _ = self._period_bounds(calendar_date, period)
+        return start.isoformat()
+
+    def last_day_of_period(self, calendar_date: Any, period: str) -> str:
+        """Último día calendario del periodo (sin validar días hábiles)."""
+        _, end = self._period_bounds(calendar_date, period)
+        return end.isoformat()

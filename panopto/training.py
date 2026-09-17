@@ -60,15 +60,17 @@ class TrainingMode:
             logger.warning(f"could not load model table config for {model_id}: {exc}")
             return {}
 
-    def _read_dev_data(self, spec: DataSourceSpec, variable: str) -> DataFrame:
-        """Helper interno que lee dev data."""
-        df = self.reader.read(spec, None)
+    def _read_dev_data(
+        self,
+        spec: DataSourceSpec,
+        variable: str,
+        table_config: "ModelTableConfig",
+        process_date: str,
+    ) -> DataFrame:
+        """Helper interno que lee dev data filtrada a la fecha de entrenamiento."""
+        reading_dates = table_config.history_date_range(process_date)
+        df = self.reader.read(spec, reading_dates)
         df = df.withColumnRenamed(spec.column, variable)
-        date_col = spec.date_column or spec.information_date_column
-        if date_col and date_col in df.columns:
-            max_date = df.agg(F.max(date_col).alias("m")).collect()[0]["m"]
-            if max_date is not None:
-                df = df.filter(F.col(date_col) == max_date)
         return df
 
     @staticmethod
@@ -233,7 +235,7 @@ class TrainingMode:
                 information_date_column=info_col,
                 table_config=table_config,
             )
-            df = self._read_dev_data(spec, variable)
+            df = self._read_dev_data(spec, variable, table_config, process_date)
             sample_size = df.count()
             if sample_size == 0:
                 continue

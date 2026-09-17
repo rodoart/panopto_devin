@@ -36,6 +36,17 @@ def _parse_int(value: Any) -> Optional[int]:
         return None
 
 
+def _parse_bool(value: Any) -> bool:
+    """Convierte un valor a bool."""
+    if value is None:
+        return True
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ("true", "1", "t", "yes", "y")
+    return bool(value)
+
+
 @dataclass
 class ModelTableConfig:
     """Configuración a nivel tabla para un modelo."""
@@ -55,6 +66,7 @@ class ModelTableConfig:
     data_type: Optional[str]
     partition_columns: List[str]
     reading_mode: Optional[str]
+    use_business_days: bool = True
     active: bool = True
     model_id: Optional[str] = None
     process_date: Optional[str] = None
@@ -78,6 +90,7 @@ class ModelTableConfig:
             data_type=row.get("data_type") or None,
             partition_columns=_parse_json_list(row.get("partition_columns", "[]")),
             reading_mode=row.get("reading_mode") or "each",
+            use_business_days=_parse_bool(row.get("use_business_days")),
             active=bool(row.get("active", True)),
             model_id=row.get("model_id"),
             process_date=row.get("process_date"),

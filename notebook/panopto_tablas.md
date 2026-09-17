@@ -8,7 +8,7 @@ Esta guía describe las tablas de configuración, resultados y logs del framewor
 Ruta Spark: `gcprmsbx_work.panopto_model_table_config`
 
 
-Configuración a nivel tabla (conexión, llaves, particiones, transformación, ventana histórica, reading_mode).
+Configuración a nivel tabla (conexión, llaves, particiones, transformación, ventana histórica, reading_mode, use_business_days).
 
 
 | Campo | Tipo | Descripción |
@@ -28,6 +28,7 @@ Configuración a nivel tabla (conexión, llaves, particiones, transformación, v
 | `data_type` | string | numeric o categorical |
 | `partition_columns` | string | JSON con columnas de partición |
 | `reading_mode` | string | each, first o last |
+| `use_business_days` | boolean | True si la resolución de fechas debe usar días hábiles; False para días calendario |
 | `active` | boolean | True si la configuración está activa |
 | `process_date` | string |  |
 | `model_id` | string |  |

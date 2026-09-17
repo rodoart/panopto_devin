@@ -1039,6 +1039,12 @@
       "description": "each, first o last"
     },
     {
+      "name": "use_business_days",
+      "type": "boolean",
+      "nullable": true,
+      "description": "True si la resolución de fechas debe usar días hábiles; False para días calendario"
+    },
+    {
       "name": "active",
       "type": "boolean",
       "nullable": true,

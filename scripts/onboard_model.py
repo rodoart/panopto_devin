@@ -55,6 +55,7 @@ MODEL: Dict[str, Any] = {
             "sql_transform": "",
             "data_type": "",
             "partition_columns": ["information_date"],
+            "use_business_days": True,
             "active": True,
         },
         {
@@ -72,6 +73,7 @@ MODEL: Dict[str, Any] = {
             "sql_transform": "",
             "data_type": "",
             "partition_columns": ["information_date"],
+            "use_business_days": True,
             "active": True,
         },
         {
@@ -89,6 +91,7 @@ MODEL: Dict[str, Any] = {
             "sql_transform": "",
             "data_type": "",
             "partition_columns": ["information_date"],
+            "use_business_days": True,
             "active": True,
         },
     ],
@@ -171,6 +174,7 @@ def insert_hive(spark: SparkSession) -> None:
             "data_type": t.get("data_type", ""),
             "partition_columns": _to_json_list(t.get("partition_columns", [])),
             "reading_mode": t.get("reading_mode", "each"),
+            "use_business_days": t.get("use_business_days", True),
             "active": t.get("active", True),
         })
     table_rows = _add_partition(table_rows, model_id, process_date)

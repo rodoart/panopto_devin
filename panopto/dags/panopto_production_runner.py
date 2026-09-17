@@ -56,7 +56,14 @@ def run_production(**context: Any) -> None:
     for model in models:
         model_id = str(model["model_id"])
         frequency = model.get("frequency", "daily")
-        information_date = calendar.expected_information_date(frequency, today)
+        execution_monthly_day = model.get("execution_monthly_day")
+        execution_weekday = model.get("execution_weekday")
+        information_date = calendar.expected_information_date(
+            frequency,
+            today,
+            execution_monthly_day=execution_monthly_day,
+            execution_weekday=execution_weekday,
+        )
         logger.info(f"processing model {model_id} with frequency {frequency}, information_date {information_date}")
         if frequency == "business_daily" and not is_business:
             continue

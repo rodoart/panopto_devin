@@ -106,6 +106,7 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             data_type="",
             partition_columns="[]",
             reading_mode="each",
+            use_business_days=True,
             active=True,
             process_date="2025-01-01",
             model_id=model_id,
@@ -126,6 +127,7 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             data_type="",
             partition_columns="[]",
             reading_mode="each",
+            use_business_days=True,
             active=True,
             process_date="2025-01-01",
             model_id=model_id,
@@ -146,6 +148,7 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             data_type="",
             partition_columns="[]",
             reading_mode="each",
+            use_business_days=True,
             active=True,
             process_date="2025-01-01",
             model_id=model_id,
@@ -200,6 +203,12 @@ class FakeCalendar:
     def last_business_day_of_period(self, calendar_date: Any, period: str) -> str:
         return "2025-01-30"
 
+    def first_day_of_period(self, calendar_date: Any, period: str) -> str:
+        return "2025-01-01"
+
+    def last_day_of_period(self, calendar_date: Any, period: str) -> str:
+        return "2025-01-31"
+
     def shift_months(self, calendar_date: Any, months: int) -> str:
         d = dt.date.fromisoformat(calendar_date) if isinstance(calendar_date, str) else calendar_date
         month = d.month - 1 + months
@@ -241,6 +250,25 @@ def test_metric_runner_resolve_dates_first_monthly(spark: SparkSession):
     assert current == ["2025-01-02"]
     # Previous period is 2024-12-15, fake calendar returns fixed string.
     assert baseline == ["2025-01-02"]
+
+
+def test_metric_runner_period_dates_calendar_days(spark: SparkSession):
+    """_period_dates uses calendar days when use_business_days is False."""
+    runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
+    assert runner._period_dates("2025-01-15", "first", "monthly", use_business_days=False) == ["2025-01-01"]
+    assert runner._period_dates("2025-01-15", "last", "monthly", use_business_days=False) == ["2025-01-31"]
+
+
+def test_metric_runner_resolve_dates_calendar_days(spark: SparkSession):
+    """_resolve_dates falls back to previous calendar day when use_business_days is False."""
+    runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
+    current, baseline = runner._resolve_dates("2025-01-15", None, "each", "daily", use_business_days=False)
+    assert current == ["2025-01-15"]
+    assert baseline == ["2025-01-14"]
+    current, baseline = runner._resolve_dates("2025-01-15", None, "first", "monthly", use_business_days=False)
+    assert current == ["2025-01-01"]
+    # Previous period is 2024-12-15; fake calendar returns fixed first calendar day.
+    assert baseline == ["2025-01-01"]
 
 
 def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_data: dict, checkpoint):

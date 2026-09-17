@@ -100,3 +100,17 @@ def test_first_business_day_on_or_after(postgres_connection):
     postgres_connection.set_results([(dt.date(2025, 1, 2),)])
     calendar = BanamexCalendar()
     assert calendar.first_business_day_on_or_after("2025-01-01") == "2025-01-02"
+
+
+def test_first_day_of_period():
+    """first_day_of_period devuelve el primer día calendario del periodo."""
+    calendar = BanamexCalendar()
+    assert calendar.first_day_of_period("2025-01-15", "month") == "2025-01-01"
+    assert calendar.first_day_of_period("2025-01-15", "week") == "2025-01-13"
+
+
+def test_last_day_of_period():
+    """last_day_of_period devuelve el último día calendario del periodo."""
+    calendar = BanamexCalendar()
+    assert calendar.last_day_of_period("2025-01-15", "month") == "2025-01-31"
+    assert calendar.last_day_of_period("2025-01-15", "week") == "2025-01-19"

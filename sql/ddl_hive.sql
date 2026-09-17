@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_model_table_config (
     data_type STRING -- numeric o categorical,
     partition_columns STRING -- JSON con columnas de partición,
     reading_mode STRING -- each, first o last,
+    use_business_days BOOLEAN -- True si la resolución de fechas debe usar días hábiles; False para días calendario,
     active BOOLEAN -- True si la configuración está activa
 )
 PARTITIONED BY (

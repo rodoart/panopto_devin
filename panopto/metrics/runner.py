@@ -163,7 +163,11 @@ class MetricRunner:
             if spec.canonical_keys and var_type == "score":
                 self.canonical_keys = list(spec.canonical_keys)
             current_dates, baseline_dates = self._resolve_dates(
-                information_date, baseline_date, reading_mode, frequency
+                information_date,
+                baseline_date,
+                reading_mode,
+                frequency,
+                use_business_days=table_config.use_business_days,
             )
             if var_type == "target" and target_lag_months > 0:
                 current_dates = [self.calendar.shift_months(d, -target_lag_months) for d in current_dates]
@@ -395,15 +399,25 @@ class MetricRunner:
             baseline = baseline.withColumnRenamed(spec.column, variable)
         return current, baseline
 
-    def _period_dates(self, reference_date: str, reading_mode: str, frequency: str) -> List[str]:
+    def _period_dates(
+        self,
+        reference_date: str,
+        reading_mode: str,
+        frequency: str,
+        use_business_days: bool = True,
+    ) -> List[str]:
         """Helper interno que realiza la operación "period_dates"."""
         period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
         if reading_mode == "each" or period == "day":
             return [reference_date]
         if reading_mode == "first":
-            return [self.calendar.first_business_day_of_period(reference_date, period)]
+            if use_business_days:
+                return [self.calendar.first_business_day_of_period(reference_date, period)]
+            return [self.calendar.first_day_of_period(reference_date, period)]
         if reading_mode == "last":
-            return [self.calendar.last_business_day_of_period(reference_date, period)]
+            if use_business_days:
+                return [self.calendar.last_business_day_of_period(reference_date, period)]
+            return [self.calendar.last_day_of_period(reference_date, period)]
         return [reference_date]
 
     def _previous_period_reference(self, reference_date: str, frequency: str) -> str:
@@ -420,18 +434,28 @@ class MetricRunner:
             d = d - timedelta(days=1)
         return d.isoformat()
 
-    def _resolve_dates(self, information_date: str, baseline_date: Optional[str], reading_mode: str, frequency: str) -> Tuple[Any, ...]:
+    def _resolve_dates(
+        self,
+        information_date: str,
+        baseline_date: Optional[str],
+        reading_mode: str,
+        frequency: str,
+        use_business_days: bool = True,
+    ) -> Tuple[Any, ...]:
         """Helper interno que resuelve dates."""
-        current_dates = self._period_dates(information_date, reading_mode, frequency)
+        current_dates = self._period_dates(information_date, reading_mode, frequency, use_business_days)
         if reading_mode == "each":
             if baseline_date:
                 baseline_dates = [baseline_date]
-            else:
+            elif use_business_days:
                 prev = self.calendar.previous_business_days(information_date, 1)
                 baseline_dates = [prev[0].isoformat()] if prev else [information_date]
+            else:
+                d = datetime.fromisoformat(information_date).date() - timedelta(days=1)
+                baseline_dates = [d.isoformat()]
         else:
             prev_ref = self._previous_period_reference(information_date, frequency)
-            baseline_dates = self._period_dates(prev_ref, reading_mode, frequency)
+            baseline_dates = self._period_dates(prev_ref, reading_mode, frequency, use_business_days)
         return current_dates, baseline_dates
 
     def _metrics_for_variable(self, var_type: str, data_type: str) -> List[str]:
