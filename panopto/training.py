@@ -94,23 +94,32 @@ class TrainingMode:
         table_config: "ModelTableConfig",
         information_date: str,
         frequency: str,
-        execution_monthly_day: Optional[int],
-        execution_weekday: Optional[int],
     ) -> DataFrame:
-        """Helper interno que lee dev data filtrada a la fecha de información."""
+        """Helper interno que lee dev data filtrada al modo y fecha de información."""
         history_refs = table_config.history_date_range(information_date)
-        if table_config.use_business_days:
-            reading_dates = [
-                self.calendar.expected_information_date(
-                    frequency,
-                    ref,
-                    execution_monthly_day=execution_monthly_day,
-                    execution_weekday=execution_weekday,
-                )
-                for ref in history_refs
-            ]
-        else:
-            reading_dates = history_refs
+        period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
+        reading_mode = str(table_config.reading_mode or "each")
+        reading_dates: List[str] = []
+
+        for ref in history_refs:
+            if reading_mode == "first":
+                if table_config.use_business_days:
+                    reading_dates.append(self.calendar.first_business_day_of_period(ref, period))
+                else:
+                    reading_dates.append(self.calendar.first_day_of_period(ref, period))
+            elif reading_mode == "last":
+                if table_config.use_business_days:
+                    reading_dates.append(self.calendar.last_business_day_of_period(ref, period))
+                else:
+                    reading_dates.append(self.calendar.last_day_of_period(ref, period))
+            elif reading_mode == "each":
+                if table_config.use_business_days:
+                    reading_dates.extend(self.calendar.business_days_of_period(ref, period))
+                else:
+                    reading_dates.extend(self.calendar.all_days_of_period(ref, period))
+            else:
+                reading_dates.append(ref)
+
         df = self.reader.read(spec, reading_dates)
         df = df.withColumnRenamed(spec.column, variable)
         return df
@@ -294,8 +303,6 @@ class TrainingMode:
                 table_config,
                 information_date,
                 frequency,
-                execution_monthly_day,
-                execution_weekday,
             )
             sample_size = df.count()
             if sample_size == 0:
