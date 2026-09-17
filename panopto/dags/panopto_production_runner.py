@@ -14,6 +14,17 @@ from panopto.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _has_successful_run(spark, table: str, model_id: str, information_date: str) -> bool:
+    """Devuelve True si ya existe una corrida exitosa para el modelo y fecha."""
+    return spark.sql(f"""
+        SELECT 1 FROM {table}
+        WHERE model_id = '{model_id}'
+          AND information_date = '{information_date}'
+          AND status = 'SUCCESS'
+        LIMIT 1
+    """).count() > 0
+
+
 def run_production(**context: Any) -> None:
     """Función que ejecuta production."""
     from datetime import datetime as dt
@@ -68,6 +79,9 @@ def run_production(**context: Any) -> None:
         if frequency == "business_daily" and not is_business:
             continue
         if frequency in ("weekly", "monthly") and information_date != today_str:
+            continue
+        if _has_successful_run(spark, PROCESS_CONFIG.execution_log_table, model_id, information_date):
+            logger.info(f"skipping {model_id}/{information_date}; successful run already recorded")
             continue
         start = dt.now()
         try:
