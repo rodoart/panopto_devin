@@ -209,6 +209,21 @@ class FakeCalendar:
     def last_day_of_period(self, calendar_date: Any, period: str) -> str:
         return "2025-01-31"
 
+    def all_days_of_period(self, calendar_date: Any, period: str) -> List[str]:
+        d = dt.date.fromisoformat(calendar_date) if isinstance(calendar_date, str) else calendar_date
+        if period == "month":
+            start = d.replace(day=1)
+            end = d.replace(day=cal.monthrange(d.year, d.month)[1])
+        elif period == "week":
+            start = d - dt.timedelta(days=d.weekday())
+            end = start + dt.timedelta(days=6)
+        else:
+            start = end = d
+        return [(start + dt.timedelta(days=i)).isoformat() for i in range((end - start).days + 1)]
+
+    def business_days_of_period(self, calendar_date: Any, period: str) -> List[str]:
+        return self.all_days_of_period(calendar_date, period)
+
     def shift_months(self, calendar_date: Any, months: int) -> str:
         d = dt.date.fromisoformat(calendar_date) if isinstance(calendar_date, str) else calendar_date
         month = d.month - 1 + months
@@ -223,8 +238,9 @@ def test_metric_runner_period_dates(spark: SparkSession):
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
 
     assert runner._period_dates("2025-01-15", "each", "daily") == ["2025-01-15"]
-    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-02"]
-    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-30"]
+    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-01"]
+    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-31"]
+    assert runner._period_dates("2025-01-15", "each", "monthly", use_business_days=False) == FakeCalendar().all_days_of_period("2025-01-15", "month")
 
 
 def test_metric_runner_resolve_dates_with_baseline(spark: SparkSession):
@@ -236,7 +252,7 @@ def test_metric_runner_resolve_dates_with_baseline(spark: SparkSession):
 
 
 def test_metric_runner_resolve_dates_without_baseline(spark: SparkSession):
-    """_resolve_dates falls back to the previous business day."""
+    """_resolve_dates falls back to the previous period."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
     current, baseline = runner._resolve_dates("2025-01-15", None, "each", "daily")
     assert current == ["2025-01-15"]
@@ -247,9 +263,9 @@ def test_metric_runner_resolve_dates_first_monthly(spark: SparkSession):
     """_resolve_dates for first/last modes uses the previous period."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
     current, baseline = runner._resolve_dates("2025-01-15", None, "first", "monthly")
-    assert current == ["2025-01-02"]
-    # Previous period is 2024-12-15, fake calendar returns fixed string.
-    assert baseline == ["2025-01-02"]
+    assert current == ["2025-01-01"]
+    # Previous period is 2024-12-15; fake calendar returns fixed first calendar day.
+    assert baseline == ["2025-01-01"]
 
 
 def test_metric_runner_period_dates_calendar_days(spark: SparkSession):

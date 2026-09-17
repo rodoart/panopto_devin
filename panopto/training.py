@@ -1,12 +1,14 @@
 """Módulo training con la(s) clase(s) TrainingMode."""
 
-from datetime import datetime
+import calendar as cal
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame, SparkSession, Window
 
 from panopto.binning import categorical_bins, compute_bin_counts, numeric_bins
+from panopto.calendar import BanamexCalendar
 from panopto.checkpoint import Checkpoint
 from panopto.config.model_tables import ModelTableConfig, load_model_table_config_map
 from panopto.config.schemas import OutputSchemas
@@ -26,6 +28,7 @@ class TrainingMode:
         """Inicializa una nueva instancia de TrainingMode."""
         self.spark = spark
         self.reader = reader
+        self.calendar = BanamexCalendar()
         self.checkpoint = checkpoint or Checkpoint(spark)
         self.output_schemas = OutputSchemas()
         self.model_table_configs: Dict[str, ModelTableConfig] = {}
@@ -60,15 +63,54 @@ class TrainingMode:
             logger.warning(f"could not load model table config for {model_id}: {exc}")
             return {}
 
+    def _load_model_summary(self, model_id: str) -> Dict[str, Any]:
+        """Carga el resumen del modelo (frecuencia, días de ejecución, lag, etc.)."""
+        df = self._latest_partition(PROCESS_CONFIG.model_summary_table, model_id)
+        rows = df.collect()
+        return rows[0].asDict() if rows else {}
+
+    @staticmethod
+    def _reference_date(
+        process_date: str,
+        frequency: str,
+        execution_monthly_day: Optional[int],
+        execution_weekday: Optional[int],
+    ) -> str:
+        """Fecha de ejecución calendario (sin ajustar a días hábiles)."""
+        d = date.fromisoformat(process_date)
+        if frequency == "monthly" and execution_monthly_day is not None:
+            _, last = cal.monthrange(d.year, d.month)
+            day = min(max(1, execution_monthly_day), last)
+            return d.replace(day=day).isoformat()
+        if frequency == "weekly" and execution_weekday is not None:
+            target = d - timedelta(days=d.weekday()) + timedelta(days=execution_weekday)
+            return target.isoformat()
+        return d.isoformat()
+
     def _read_dev_data(
         self,
         spec: DataSourceSpec,
         variable: str,
         table_config: "ModelTableConfig",
-        process_date: str,
+        information_date: str,
+        frequency: str,
+        execution_monthly_day: Optional[int],
+        execution_weekday: Optional[int],
     ) -> DataFrame:
-        """Helper interno que lee dev data filtrada a la fecha de entrenamiento."""
-        reading_dates = table_config.history_date_range(process_date)
+        """Helper interno que lee dev data filtrada a la fecha de información."""
+        history_refs = table_config.history_date_range(information_date)
+        if table_config.use_business_days:
+            reading_dates = [
+                self.calendar.expected_information_date(
+                    frequency,
+                    ref,
+                    execution_monthly_day=execution_monthly_day,
+                    execution_weekday=execution_weekday,
+                )
+                for ref in history_refs
+            ]
+        else:
+            reading_dates = history_refs
         df = self.reader.read(spec, reading_dates)
         df = df.withColumnRenamed(spec.column, variable)
         return df
@@ -201,6 +243,17 @@ class TrainingMode:
         variables = self._load_variable_metadata(model_id)
         category_policy = self._load_category_policy(model_id)
         self.model_table_configs = self._load_model_table_configs(model_id)
+        model_summary = self._load_model_summary(model_id)
+        frequency = str(model_summary.get("frequency", "daily"))
+        execution_monthly_day = model_summary.get("execution_monthly_day")
+        execution_weekday = model_summary.get("execution_weekday")
+        information_date = self._reference_date(
+            process_date,
+            frequency,
+            execution_monthly_day,
+            execution_weekday,
+        )
+        logger.info(f"training information_date for {model_id}: {information_date}")
         writer = AtomicParquetWriter(self.spark)
         checkpoint_key = self._checkpoint_key(model_id, process_date, variables, category_policy)
         if (
@@ -235,7 +288,15 @@ class TrainingMode:
                 information_date_column=info_col,
                 table_config=table_config,
             )
-            df = self._read_dev_data(spec, variable, table_config, process_date)
+            df = self._read_dev_data(
+                spec,
+                variable,
+                table_config,
+                information_date,
+                frequency,
+                execution_monthly_day,
+                execution_weekday,
+            )
             sample_size = df.count()
             if sample_size == 0:
                 continue

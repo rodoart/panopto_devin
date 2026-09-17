@@ -408,16 +408,14 @@ class MetricRunner:
     ) -> List[str]:
         """Helper interno que realiza la operación "period_dates"."""
         period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
-        if reading_mode == "each" or period == "day":
-            return [reference_date]
         if reading_mode == "first":
-            if use_business_days:
-                return [self.calendar.first_business_day_of_period(reference_date, period)]
             return [self.calendar.first_day_of_period(reference_date, period)]
         if reading_mode == "last":
-            if use_business_days:
-                return [self.calendar.last_business_day_of_period(reference_date, period)]
             return [self.calendar.last_day_of_period(reference_date, period)]
+        if reading_mode == "each":
+            if use_business_days:
+                return self.calendar.business_days_of_period(reference_date, period)
+            return self.calendar.all_days_of_period(reference_date, period)
         return [reference_date]
 
     def _previous_period_reference(self, reference_date: str, frequency: str) -> str:
@@ -444,15 +442,8 @@ class MetricRunner:
     ) -> Tuple[Any, ...]:
         """Helper interno que resuelve dates."""
         current_dates = self._period_dates(information_date, reading_mode, frequency, use_business_days)
-        if reading_mode == "each":
-            if baseline_date:
-                baseline_dates = [baseline_date]
-            elif use_business_days:
-                prev = self.calendar.previous_business_days(information_date, 1)
-                baseline_dates = [prev[0].isoformat()] if prev else [information_date]
-            else:
-                d = datetime.fromisoformat(information_date).date() - timedelta(days=1)
-                baseline_dates = [d.isoformat()]
+        if baseline_date:
+            baseline_dates = [baseline_date]
         else:
             prev_ref = self._previous_period_reference(information_date, frequency)
             baseline_dates = self._period_dates(prev_ref, reading_mode, frequency, use_business_days)

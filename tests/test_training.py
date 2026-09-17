@@ -13,7 +13,7 @@ def _create_training_tables(spark, sample_data, model_id="M1"):
                 "variable": "age",
                 "var_type": "input",
                 "data_type": "numeric",
-                "source_table": "hive:training_raw",
+                "source_table": "training_raw",
                 "source_column": "age",
                 "information_date_column": "information_date",
                 "partition_columns": "[]",
@@ -24,7 +24,7 @@ def _create_training_tables(spark, sample_data, model_id="M1"):
                 "variable": "category",
                 "var_type": "input",
                 "data_type": "categorical",
-                "source_table": "hive:training_raw",
+                "source_table": "training_raw",
                 "source_column": "category",
                 "information_date_column": "information_date",
                 "partition_columns": "[]",
@@ -45,6 +45,52 @@ def _create_training_tables(spark, sample_data, model_id="M1"):
             }
         ]
     ).createOrReplaceTempView(PROCESS_CONFIG.category_policy_table)
+
+    spark.createDataFrame(
+        [
+            {
+                "model_name": "model",
+                "model_description": "",
+                "model_type": "binary",
+                "status": "active",
+                "cut_off_probability": 0.5,
+                "frequency": "daily",
+                "window_value": 3,
+                "window_unit": "weeks",
+                "execution_monthly_day": None,
+                "execution_weekday": None,
+                "target_lag_months": 0,
+                "process_date": "2025-01-01",
+                "model_id": model_id,
+            }
+        ]
+    ).createOrReplaceTempView(PROCESS_CONFIG.model_summary_table)
+
+    spark.createDataFrame(
+        [
+            {
+                "table_role": "raw",
+                "table_name": "training_raw",
+                "source_type": "HIVE",
+                "source_schema": None,
+                "source_table": "training_raw",
+                "entity_key_columns": '["customer_id"]',
+                "canonical_key_columns": '["customer_id"]',
+                "date_column": "information_date",
+                "date_format": "",
+                "history_months": 1,
+                "lag": 0,
+                "sql_transform": "",
+                "data_type": "",
+                "partition_columns": "[]",
+                "reading_mode": "each",
+                "use_business_days": False,
+                "active": True,
+                "process_date": "2025-01-01",
+                "model_id": model_id,
+            }
+        ]
+    ).createOrReplaceTempView(PROCESS_CONFIG.model_table_config_table)
 
     sample_data["raw"].createOrReplaceTempView("training_raw")
 

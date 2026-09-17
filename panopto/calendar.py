@@ -198,3 +198,27 @@ class BanamexCalendar:
         """Último día calendario del periodo (sin validar días hábiles)."""
         _, end = self._period_bounds(calendar_date, period)
         return end.isoformat()
+
+    def all_days_of_period(self, calendar_date: Any, period: str) -> List[str]:
+        """Todos los días calendario del periodo."""
+        start, end = self._period_bounds(calendar_date, period)
+        return [(start + timedelta(days=i)).isoformat() for i in range((end - start).days + 1)]
+
+    def business_days_of_period(self, calendar_date: Any, period: str) -> List[str]:
+        """Días hábiles del periodo según la tabla de calendario."""
+        start, end = self._period_bounds(calendar_date, period)
+        table = PROCESS_CONFIG.banamex_calendar_sync_table
+        with self.psql.connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"""
+                    SELECT calendar_date
+                    FROM {table}
+                    WHERE calendar_date >= %s AND calendar_date <= %s
+                      AND is_business_day = true
+                    ORDER BY calendar_date ASC
+                """,
+                    (start, end),
+                )
+                rows = cur.fetchall()
+        return [r[0].isoformat() for r in rows]
