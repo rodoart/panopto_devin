@@ -1,5 +1,6 @@
 """Módulo runner con la(s) clase(s) MissingDataError, MetricRunner."""
 
+import calendar as cal
 import dataclasses
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -164,9 +165,9 @@ class MetricRunner:
                 self.canonical_keys = list(spec.canonical_keys)
             current_dates, baseline_dates = self._resolve_dates(
                 information_date,
-                baseline_date,
                 reading_mode,
                 frequency,
+                lag=table_config.lag if table_config.lag is not None else 1,
                 use_business_days=table_config.use_business_days,
             )
             if var_type == "target" and target_lag_months > 0:
@@ -418,35 +419,32 @@ class MetricRunner:
             return self.calendar.all_days_of_period(reference_date, period)
         return [reference_date]
 
-    def _previous_period_reference(self, reference_date: str, frequency: str) -> str:
-        """Helper interno que realiza la operación "previous_period_reference"."""
+    def _period_reference(self, reference_date: str, frequency: str, periods: int = 1) -> str:
+        """Desplaza la fecha de referencia por `periods` unidades de frecuencia."""
         d = datetime.fromisoformat(reference_date).date()
         if frequency == "monthly":
-            if d.month == 1:
-                d = d.replace(year=d.year - 1, month=12)
-            else:
-                d = d.replace(month=d.month - 1)
+            months = d.month - 1 - periods
+            year = d.year + months // 12
+            month = months % 12 + 1
+            day = min(d.day, cal.monthrange(year, month)[1])
+            return date(year, month, day).isoformat()
         elif frequency == "weekly":
-            d = d - timedelta(days=7)
+            return (d - timedelta(days=7 * periods)).isoformat()
         else:
-            d = d - timedelta(days=1)
-        return d.isoformat()
+            return (d - timedelta(days=periods)).isoformat()
 
     def _resolve_dates(
         self,
         information_date: str,
-        baseline_date: Optional[str],
         reading_mode: str,
         frequency: str,
+        lag: int = 1,
         use_business_days: bool = True,
     ) -> Tuple[Any, ...]:
         """Helper interno que resuelve dates."""
         current_dates = self._period_dates(information_date, reading_mode, frequency, use_business_days)
-        if baseline_date:
-            baseline_dates = [baseline_date]
-        else:
-            prev_ref = self._previous_period_reference(information_date, frequency)
-            baseline_dates = self._period_dates(prev_ref, reading_mode, frequency, use_business_days)
+        baseline_ref = self._period_reference(information_date, frequency, periods=lag)
+        baseline_dates = self._period_dates(baseline_ref, reading_mode, frequency, use_business_days)
         return current_dates, baseline_dates
 
     def _metrics_for_variable(self, var_type: str, data_type: str) -> List[str]:

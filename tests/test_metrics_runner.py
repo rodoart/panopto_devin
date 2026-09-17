@@ -243,28 +243,24 @@ def test_metric_runner_period_dates(spark: SparkSession):
     assert runner._period_dates("2025-01-15", "each", "monthly", use_business_days=False) == FakeCalendar().all_days_of_period("2025-01-15", "month")
 
 
-def test_metric_runner_resolve_dates_with_baseline(spark: SparkSession):
-    """_resolve_dates honors an explicit baseline_date."""
+def test_metric_runner_resolve_dates_with_lag(spark: SparkSession):
+    """_resolve_dates desplaza el baseline según el lag de la tabla."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
-    current, baseline = runner._resolve_dates("2025-01-15", "2025-01-10", "each", "daily")
-    assert current == ["2025-01-15"]
-    assert baseline == ["2025-01-10"]
-
-
-def test_metric_runner_resolve_dates_without_baseline(spark: SparkSession):
-    """_resolve_dates falls back to the previous period."""
-    runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
-    current, baseline = runner._resolve_dates("2025-01-15", None, "each", "daily")
+    current, baseline = runner._resolve_dates("2025-01-15", "each", "daily", lag=1)
     assert current == ["2025-01-15"]
     assert baseline == ["2025-01-14"]
+    current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly", lag=2)
+    assert current == ["2025-01-01"]
+    # Reference -2 meses: 2024-11-15; fake calendar devuelve primer día fijo.
+    assert baseline == ["2025-01-01"]
 
 
 def test_metric_runner_resolve_dates_first_monthly(spark: SparkSession):
     """_resolve_dates for first/last modes uses the previous period."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
-    current, baseline = runner._resolve_dates("2025-01-15", None, "first", "monthly")
+    current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly")
     assert current == ["2025-01-01"]
-    # Previous period is 2024-12-15; fake calendar returns fixed first calendar day.
+    # Default lag=1: previous period is 2024-12-15; fake calendar returns fixed first calendar day.
     assert baseline == ["2025-01-01"]
 
 
@@ -278,12 +274,12 @@ def test_metric_runner_period_dates_calendar_days(spark: SparkSession):
 def test_metric_runner_resolve_dates_calendar_days(spark: SparkSession):
     """_resolve_dates falls back to previous calendar day when use_business_days is False."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
-    current, baseline = runner._resolve_dates("2025-01-15", None, "each", "daily", use_business_days=False)
+    current, baseline = runner._resolve_dates("2025-01-15", "each", "daily", use_business_days=False)
     assert current == ["2025-01-15"]
     assert baseline == ["2025-01-14"]
-    current, baseline = runner._resolve_dates("2025-01-15", None, "first", "monthly", use_business_days=False)
+    current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly", use_business_days=False)
     assert current == ["2025-01-01"]
-    # Previous period is 2024-12-15; fake calendar returns fixed first calendar day.
+    # Default lag=1: previous period is 2024-12-15; fake calendar returns fixed first calendar day.
     assert baseline == ["2025-01-01"]
 
 
