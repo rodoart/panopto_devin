@@ -421,10 +421,14 @@ class MetricRunner:
     ) -> List[str]:
         """Helper interno que realiza la operación "period_dates"."""
         period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
-        if reading_mode in ("first", "last"):
-            # Para periodos con un único registro (mensual/semanal) se lee la fecha
-            # de ejecución; first/last son equivalentes en ese caso.
-            return [reference_date]
+        if reading_mode == "first":
+            if use_business_days:
+                return [self.calendar.first_business_day_of_period(reference_date, period)]
+            return [self.calendar.first_day_of_period(reference_date, period)]
+        if reading_mode == "last":
+            if use_business_days:
+                return [self.calendar.last_business_day_of_period(reference_date, period)]
+            return [self.calendar.last_day_of_period(reference_date, period)]
         if reading_mode == "each":
             if use_business_days:
                 return self.calendar.business_days_of_period(reference_date, period)

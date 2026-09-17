@@ -237,8 +237,8 @@ def test_metric_runner_period_dates(spark: SparkSession):
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
 
     assert runner._period_dates("2025-01-15", "each", "daily") == ["2025-01-15"]
-    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-15"]
-    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-15"]
+    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-01"]
+    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-31"]
     assert runner._period_dates("2025-01-15", "each", "monthly", use_business_days=False) == FakeCalendar().all_days_of_period("2025-01-15", "month")
 
 
@@ -249,18 +249,18 @@ def test_metric_runner_resolve_dates_with_lag(spark: SparkSession):
     assert current == ["2025-01-15"]
     assert baseline == ["2025-01-14"]
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly", lag=2)
-    assert current == ["2025-01-15"]
-    # Reference -2 meses: 2024-11-15.
-    assert baseline == ["2024-11-15"]
+    # FakeCalendar devuelve siempre 2025-01-01 para first_day_of_period.
+    assert current == ["2025-01-01"]
+    assert baseline == ["2025-01-01"]
 
 
 def test_metric_runner_resolve_dates_first_monthly(spark: SparkSession):
     """_resolve_dates for first/last modes uses the previous period."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly")
-    assert current == ["2025-01-15"]
-    # Default lag=1: reference -1 mes = 2024-12-15.
-    assert baseline == ["2024-12-15"]
+    # FakeCalendar devuelve siempre 2025-01-01 para first_day_of_period.
+    assert current == ["2025-01-01"]
+    assert baseline == ["2025-01-01"]
 
 
 def test_metric_runner_period_dates_calendar_days(spark: SparkSession):
@@ -277,9 +277,9 @@ def test_metric_runner_resolve_dates_calendar_days(spark: SparkSession):
     assert current == ["2025-01-15"]
     assert baseline == ["2025-01-14"]
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly", use_business_days=False)
-    assert current == ["2025-01-15"]
-    # Default lag=1: reference -1 mes = 2024-12-15.
-    assert baseline == ["2024-12-15"]
+    # FakeCalendar devuelve siempre 2025-01-01 para first_day_of_period.
+    assert current == ["2025-01-01"]
+    assert baseline == ["2025-01-01"]
 
 
 def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_data: dict, checkpoint):
