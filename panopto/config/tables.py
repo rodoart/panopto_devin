@@ -28,6 +28,8 @@ class ProcessConfig:
     email_log_table: str = "gcprmsbx_work.panopto_email_log"
     staging_control_table: str = "gcprmsbx_work.panopto_staging_control"
     variable_summary_table: str = "gcprmsbx_work.panopto_variable_summary"
+    dashboard_semaphore_table: str = "gcprmsbx_work.panopto_dashboard_semaphore"
+    dashboard_model_summary_table: str = "gcprmsbx_work.panopto_dashboard_model_summary"
     banamex_calendar_table: str = "gcprmsbx_work.panopto_banamex_calendar"
     external_banamex_calendar_table: str = "gcprmsbx_work.panopto_banamex_calendar_ext_d"
 

@@ -163,6 +163,9 @@ if not summ.empty:
         use_container_width=True,
     )
 
+from panopto.config.tables import PROCESS_CONFIG
+
 st.caption(
-    "PANOPTO — Datos extraídos de panopto_dashboard_semaphore y panopto_dashboard_model_summary"
+    f"PANOPTO — Datos extraídos de {PROCESS_CONFIG.dashboard_semaphore_table} "
+    f"y {PROCESS_CONFIG.dashboard_model_summary_table}"
 )

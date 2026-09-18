@@ -1,4 +1,4 @@
-"""DAG de Airflow panopto_output_validator; expone las funciones validate_output_tables, trigger_tableau_refresh, log_refresh."""
+"""DAG de Airflow panopto_output_validator; expone las funciones validate_output_tables, build_dashboard_views, trigger_tableau_refresh, log_refresh."""
 
 from typing import Any
 
@@ -8,6 +8,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 
 from panopto.config.tables import PROCESS_CONFIG
+from panopto.dashboard.builder import build_dashboard_views as _build_dashboard_views
 from panopto.logging import get_logger
 
 logger = get_logger(__name__)
@@ -30,6 +31,13 @@ def validate_output_tables(**context: Any) -> None:
     if metric_count == 0 or alert_count == 0:
         raise ValueError(f"missing output data for {today}: metrics={metric_count}, alerts={alert_count}")
     logger.info(f"validation ok for {today}: metrics={metric_count}, alerts={alert_count}")
+
+
+def build_dashboard_views(**context: Any) -> None:
+    """Construye/refresca las vistas del dashboard."""
+    from panopto.sessions import SparkSessionBuilder
+    spark = SparkSessionBuilder(app_name="panopto_dashboard_view_builder").build()
+    _build_dashboard_views(spark)
 
 
 def trigger_tableau_refresh(**context: Any) -> None:
@@ -87,6 +95,7 @@ with DAG(
     tags=["panopto"],
 ) as dag:
     validate = PythonOperator(task_id="validate_output_tables", python_callable=validate_output_tables)
+    build_views = PythonOperator(task_id="build_dashboard_views", python_callable=build_dashboard_views)
     refresh = PythonOperator(task_id="trigger_tableau_refresh", python_callable=trigger_tableau_refresh)
     log = PythonOperator(task_id="log_refresh", python_callable=log_refresh)
-    validate >> refresh >> log
+    validate >> build_views >> refresh >> log
