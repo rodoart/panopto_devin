@@ -167,7 +167,7 @@ class MetricRunner:
                 information_date_column=info_col,
                 table_config=table_config,
             )
-            if spec.canonical_keys and var_type == "score":
+            if spec.canonical_keys:
                 self.canonical_keys = list(spec.canonical_keys)
             current_dates, baseline_dates = self._resolve_dates(
                 information_date,

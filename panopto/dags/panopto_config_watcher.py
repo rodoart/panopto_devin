@@ -13,11 +13,11 @@ from panopto.logging import get_logger
 logger = get_logger(__name__)
 
 
-def sync_calendar() -> None:
+def sync_calendar(**context: Any) -> None:
     """Función que realiza la operación "sync_calendar"."""
     from panopto.sessions import PostgresSession, SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="panopto_config_watcher_sync").build()
-    today = datetime.now().date()
+    today = datetime.fromisoformat(context["ds"]).date()
     thirty_days_ago = (today - timedelta(days=30)).strftime("%Y-%m-%d")
     calendar_table = PROCESS_CONFIG.banamex_calendar_table
     sync_table = PROCESS_CONFIG.banamex_calendar_sync_table
@@ -53,7 +53,7 @@ def detect_config_changes(**context: Any) -> None:
     """Función que realiza la operación "detect_config_changes"."""
     from panopto.sessions import SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="panopto_config_watcher_detect").build()
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = context["ds"]
     model_summary_table = PROCESS_CONFIG.model_summary_table
     config_changelog_table = PROCESS_CONFIG.config_changelog_table
     latest = spark.sql(f"""
@@ -102,7 +102,7 @@ def mode_training(**context: Any) -> None:
     from panopto.training import TrainingMode
     spark = SparkSessionBuilder(app_name="panopto_config_watcher_train").build()
     reader = DataReader(spark)
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = context["ds"]
     config_changelog_table = PROCESS_CONFIG.config_changelog_table
     df = spark.sql(f"""
         SELECT model_id FROM {config_changelog_table}
@@ -126,7 +126,7 @@ def validate_training(**context: Any) -> None:
     from airflow.exceptions import AirflowFailException
     from panopto.sessions import SparkSessionBuilder
     spark = SparkSessionBuilder(app_name="panopto_config_watcher_validate").build()
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = context["ds"]
     config_changelog_table = PROCESS_CONFIG.config_changelog_table
     metric_threshold_auto_table = PROCESS_CONFIG.metric_threshold_auto_table
     df = spark.sql(f"""

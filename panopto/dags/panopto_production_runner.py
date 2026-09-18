@@ -43,8 +43,8 @@ def run_production(**context: Any) -> None:
     writer = AtomicParquetWriter(spark)
     aggregator = AlertAggregator()
     calendar = BanamexCalendar()
-    today = dt.now().date()
-    today_str = today.strftime("%Y-%m-%d")
+    today = dt.fromisoformat(context["ds"]).date()
+    today_str = context["ds"]
     execution_id = context["run_id"]
     logger.info(f"starting production run for {today_str}")
     dag_id = context["dag"]["dag_id"]
@@ -87,7 +87,7 @@ def run_production(**context: Any) -> None:
         try:
             baseline_days = calendar.previous_business_days(information_date, 2)
             baseline_date = baseline_days[0].isoformat() if baseline_days else None
-            runner = MetricRunner(spark, reader, join_keys=["customer_id"], calendar=calendar)
+            runner = MetricRunner(spark, reader, calendar=calendar)
             results = runner.run(model_id, information_date, execution_id, baseline_date=baseline_date)
         except MissingDataError as exc:
             log_df = spark.createDataFrame(

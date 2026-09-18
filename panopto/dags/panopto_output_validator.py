@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 def validate_output_tables(**context: Any) -> None:
     """Función que valida output tables."""
     from panopto.sessions import SparkSessionBuilder
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = context["ds"]
     logger.info(f"validating output tables for {today}")
     spark = SparkSessionBuilder(app_name="panopto_output_validator").build()
     metric_count = spark.sql(f"""
@@ -41,8 +41,7 @@ def log_refresh(**context: Any) -> None:
     """Función que registra refresh."""
     from panopto.config.schemas import OutputSchemas
     from panopto.sessions import SparkSessionBuilder
-    from datetime import datetime as dt
-    today = dt.now().strftime("%Y-%m-%d")
+    today = context["ds"]
     spark = SparkSessionBuilder(app_name="panopto_output_validator_log").build()
     execution_id = context["run_id"]
     dag_id = context["dag"]["dag_id"]
