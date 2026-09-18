@@ -145,6 +145,10 @@ class MetricRunner:
         score_spec = None
         score_table_config = None
         target_table_lag = 0
+        target_current_dates: List[str] = []
+        target_baseline_dates: List[str] = []
+        target_spec = None
+        target_table_config = None
         input_numeric = []
 
         frequency = str(model_summary.get("frequency", "daily"))
@@ -187,7 +191,7 @@ class MetricRunner:
                 )
             )
             if var_type in ("raw", "input") and data_type == "numeric":
-                input_numeric.append((var, current, baseline))
+                input_numeric.append((var, current, baseline, current_dates, baseline_dates, spec, table_config))
             if var_type == "score":
                 score_df = current
                 score_baseline = baseline
@@ -199,6 +203,10 @@ class MetricRunner:
                 target_baseline = baseline
                 target_col_name = var
                 target_table_lag = table_config.lag if table_config.lag is not None else 0
+                target_current_dates = current_dates
+                target_baseline_dates = baseline_dates
+                target_spec = spec
+                target_table_config = table_config
             metrics = self._metrics_for_variable(var_type, data_type)
             for metric_name in metrics:
                 if metric_name in NEEDS_BASELINE_DATA and baseline is None:
@@ -250,10 +258,15 @@ class MetricRunner:
             score_df_for_target, score_baseline_for_target = self._read_data(
                 score_spec, score_col_name, target_score_current, target_score_baseline
             )
-            joined = self._join_conjugate(score_df_for_target, target_df, score_col_name, target_col_name)
+            # Alinear score y target a las mismas fechas ancla para el join.
+            score_for_target = self._align_for_join(score_df_for_target, score_spec, target_current_dates)
+            target_aligned = self._align_for_join(target_df, target_spec, target_current_dates)
+            joined = self._join_conjugate(score_for_target, target_aligned, score_col_name, target_col_name)
             baseline_joined = None
             if score_baseline_for_target is not None and target_baseline is not None:
-                baseline_joined = self._join_conjugate(score_baseline_for_target, target_baseline, score_col_name, target_col_name)
+                score_baseline_for_target = self._align_for_join(score_baseline_for_target, score_spec, target_baseline_dates)
+                target_baseline_aligned = self._align_for_join(target_baseline, target_spec, target_baseline_dates)
+                baseline_joined = self._join_conjugate(score_baseline_for_target, target_baseline_aligned, score_col_name, target_col_name)
             for metric_name in ("auc", "gini", "brier_score", "lift_top_decile", "calibration_slope", "ks_score_target"):
                 thresholds = self._thresholds_for(
                     "__SCORE__",
@@ -282,10 +295,31 @@ class MetricRunner:
                     continue
 
         if len(input_numeric) >= 2:
-            joined_current = self._join_inputs([df for _, df, _ in input_numeric])
+            # Elegir fechas ancla del primer input no-each (first/last); si no hay, usar la primera fecha del primer each.
+            anchor_current = []
+            anchor_baseline = []
+            for _, _, _, cur_dates, base_dates, _, cfg in input_numeric:
+                if str(cfg.reading_mode) in ("first", "last"):
+                    anchor_current = cur_dates
+                    anchor_baseline = base_dates
+                    break
+            if not anchor_current:
+                anchor_current = [input_numeric[0][3][0]] if input_numeric[0][3] else []
+            if not anchor_baseline:
+                anchor_baseline = [input_numeric[0][4][0]] if input_numeric[0][4] else []
+
+            aligned_current = [
+                self._align_for_join(df, spec, anchor_current)
+                for _, df, _, _, _, spec, _ in input_numeric
+            ]
+            joined_current = self._join_inputs(aligned_current)
             joined_baseline = None
-            if all(b is not None for _, _, b in input_numeric):
-                joined_baseline = self._join_inputs([b for _, _, b in input_numeric])
+            if all(b is not None for _, _, b, _, _, _, _ in input_numeric):
+                aligned_baseline = [
+                    self._align_for_join(b, spec, anchor_baseline)
+                    for _, _, b, _, _, spec, _ in input_numeric
+                ]
+                joined_baseline = self._join_inputs(aligned_baseline)
             thresholds = self._thresholds_for(
                 "__INPUTS__",
                 "input",
@@ -318,10 +352,34 @@ class MetricRunner:
 
         return results
 
+    def _align_for_join(self, df: Any, spec: DataSourceSpec, anchor_dates: List[str]) -> Any:
+        """Filtra un DataFrame a las fechas ancla, normaliza la fecha y fuerza unicidad antes del join."""
+        if not anchor_dates:
+            return df
+        date_col = spec.date_column or spec.information_date_column
+        if not date_col or date_col not in df.columns:
+            return df
+        formatted = self.data_reader._format_dates(spec, anchor_dates)
+        df = df.filter(F.col(date_col).isin(formatted))
+        if spec.date_format:
+            join_date_expr = F.to_date(F.col(date_col), spec.date_format).cast("string")
+        else:
+            join_date_expr = F.to_date(F.col(date_col)).cast("string")
+        df = df.withColumn("_panopto_join_date", join_date_expr)
+        dedup_cols = [c for c in self.canonical_keys + ["_panopto_join_date"] if c in df.columns]
+        if dedup_cols:
+            before = df.count()
+            df = df.dropDuplicates(dedup_cols)
+            after = df.count()
+            if before != after:
+                logger.warning(f"removed {before - after} duplicate rows before join on {dedup_cols}")
+        return df
+
     def _join_inputs(self, dfs: Any) -> Any:
-        """Helper interno que une inputs usando las llaves canónicas."""
+        """Helper interno que une inputs usando las llaves canónicas y la fecha ancla."""
         joined = dfs[0]
         join_cols = [c for c in self.canonical_keys if c in joined.columns]
+        join_cols.append("_panopto_join_date")
         for df in dfs[1:]:
             on = [c for c in join_cols if c in df.columns]
             if not on:
@@ -527,13 +585,15 @@ class MetricRunner:
         return thresholds
 
     def _join_conjugate(self, score_df: Any, target_df: Any, score_col: Any, target_col: Any) -> Any:
-        """Helper interno que une conjugate usando las llaves canónicas del modelo."""
+        """Helper interno que une conjugate usando las llaves canónicas del modelo y la fecha."""
         join_cols = [c for c in self.canonical_keys if c in score_df.columns and c in target_df.columns]
-        if not join_cols:
+        join_cols.append("_panopto_join_date")
+        on = [c for c in join_cols if c in score_df.columns and c in target_df.columns]
+        if not on:
             raise MissingDataError("no common join keys between score and target")
         s = score_df.withColumnRenamed(score_col, "score")
         t = target_df.withColumnRenamed(target_col, "target")
-        return s.join(t, on=join_cols, how="inner")
+        return s.join(t, on=on, how="inner")
 
     def _checkpoint_key(
         self,
