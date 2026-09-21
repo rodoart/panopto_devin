@@ -24,6 +24,17 @@ class DashboardData:
         )
         return [r["model_id"] for r in df.collect()]
 
+    def get_date_range(self, model_id: Optional[str] = None) -> tuple:
+        """Devuelve (min_date, max_date) de information_date para el modelo dado."""
+        df = self.spark.table(PROCESS_CONFIG.dashboard_model_summary_table)
+        if model_id:
+            df = df.filter(F.col("model_id") == model_id)
+        row = df.agg(
+            F.min("information_date").alias("min_d"),
+            F.max("information_date").alias("max_d"),
+        ).collect()[0]
+        return row["min_d"], row["max_d"]
+
     @staticmethod
     def _apply_filters(df: Any, model_id: Optional[str], start: Optional[str], end: Optional[str]) -> Any:
         """Aplica filtros seguros de modelo y rango de fechas."""

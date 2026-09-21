@@ -85,9 +85,45 @@ Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejempl
 - `panopto.checkpoint`: persistencia temporal de DataFrames en parquet para evitar recomputar en reejecuciones.
 - `panopto.data.sources` y `panopto.data.reader`: lectura de fuentes `hive:` y `parquet:` a partir de `variable_metadata`.
 - `panopto.binning`: bines canónicos, categóricos y cálculo de WoE.
-- `panopto.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`. También usa `panopto.checkpoint.Checkpoint` para no recomputar bins, umbrales y rankings si ya existen artefactos para el modelo y `process_date`.
+- `panopto.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`. `process_date` se usa como partición de salida; `information_date` se deriva de `process_date` usando `frequency`, `execution_monthly_day` y `execution_weekday`, pero puede sobreescribirse manualmente para entrenar como si fuera un día anterior.
 - `panopto.metrics`: motor de métricas con `MetricRegistry` y métricas de calidad, estabilidad, score y conjugadas.
 - `panopto.alerts`: agregador de alertas (`AlertAggregator`), constructor HTML de emails (`EmailBuilder`) y despachador (`EmailDispatcher`).
+
+## Entrenamiento con fecha de información distinta a `process_date`
+
+`TrainingMode.run` acepta un parámetro opcional `information_date`:
+
+```python
+from panopto.sessions import SparkSessionBuilder
+from panopto.data.reader import DataReader
+from panopto.training import TrainingMode
+
+spark = SparkSessionBuilder(app_name="manual_training").build()
+tm = TrainingMode(spark, DataReader(spark))
+
+# Entrenar con process_date=hoy pero leer datos como si fuera 2026-08-07:
+tm.run(
+    model_id="test_camelot_st",
+    process_date="2026-09-14",
+    execution_id="manual_001",
+    information_date="2026-08-07",
+)
+```
+
+- `process_date` se usa para: cargar la última partición de `variable_metadata` y `category_policy`, formar la clave del `Checkpoint` y escribir las tablas de salida con `process_date` como partición.
+- `information_date` se usa para: calcular `history_date_range` y leer las tablas fuente (`_read_dev_data`). Si no se indica, se deriva de `process_date` con `_reference_date` usando `frequency`, `execution_monthly_day` y `execution_weekday`.
+
+Esto permite hacer **backfill** o reproducir un entrenamiento histórico sin cambiar las particiones de salida ni la configuración del modelo.
+
+### Desde Airflow
+
+El DAG `panopto_config_watcher` lee `information_date` del campo `conf` del `dag_run`. Ejemplo de activación manual:
+
+```bash
+airflow dags trigger panopto_config_watcher --conf '{"information_date":"2026-08-07"}'
+```
+
+Si `information_date` no está en `conf`, se usa el comportamiento por defecto (`process_date = context["ds"]`).
 
 ## Estructura de `source_table`
 
@@ -99,6 +135,18 @@ El campo `source_table` de `gcprmsbx_work.panopto_variable_metadata` usa un pref
 ## Credenciales
 
 Todas las credenciales se leen desde variables de entorno (`panopto.config.Settings.from_env()`). No deben hardcodearse.
+
+### Kerberos
+
+Si el cluster Hive/HDFS usa Kerberos, configure `PANOPTO_KINIT_KEYTAB` y `PANOPTO_KINIT_PRINCIPAL`:
+
+```bash
+PANOPTO_KINIT_KEYTAB=/etc/security/keytabs/panopto.keytab
+PANOPTO_KINIT_PRINCIPAL=panopto@EXAMPLE.COM
+```
+
+- `SparkSessionBuilder.build()` ejecuta `kinit -kt $PANOPTO_KINIT_KEYTAB $PANOPTO_KINIT_PRINCIPAL` antes de construir la sesión, así cada corrida de DAG renueva el ticket.
+- El DAG `panopto_kinit` corre cada 7 horas como red de seguridad, para que el ticket nunca expire si hay huecos entre ejecuciones.
 
 ## Motor de métricas
 
@@ -133,7 +181,7 @@ from panopto.metrics.runner import MetricRunner
 
 spark = SparkSessionBuilder().build()
 reader = DataReader(spark)
-runner = MetricRunner(spark, reader, join_keys=["customer_id"])
+runner = MetricRunner(spark, reader)
 
 results = runner.run(
     model_id="1079_cta_lvl",
@@ -154,15 +202,15 @@ for r in results:
 from panopto.checkpoint import Checkpoint
 
 checkpoint = Checkpoint(spark, base_path="/tmp/panopto/checkpoints")
-runner = MetricRunner(spark, reader, join_keys=["customer_id"], checkpoint=checkpoint)
+runner = MetricRunner(spark, reader, checkpoint=checkpoint)
 ```
 
 El campo `reading_mode` de `gcprmsbx_work.panopto_variable_metadata` controla qué filas del periodo leer:
-- `each` (default): un solo `information_date`.
-- `first`: primer día hábil del periodo (semana/mes).
-- `last`: último día hábil del periodo.
+- `first`: primer día del periodo (primer día hábil si `use_business_days=true`, primer día calendario si no).
+- `last`: último día del periodo (último día hábil si `use_business_days=true`, último día calendario si no).
+- `each`: todos los días del periodo. Para frecuencia `daily` es un solo día; para `weekly`/`monthly` son todos los días hábiles o calendario según `use_business_days`.
 
-El periodo se deriva de `model_summary.frequency` (`weekly`/`monthly`). `MetricRunner` calcula automáticamente la línea base del periodo anterior cuando el modo no es `each`.
+El periodo se deriva de `model_summary.frequency` (`weekly`/`monthly`). `MetricRunner` desplaza el `current` por el `lag` de `model_table_config` y calcula la línea base un periodo antes del `current`.
 
 ## Alertas y notificaciones
 
@@ -285,6 +333,19 @@ streamlit run panopto/dashboard/app.py
 ```
 
 Se abre en `http://localhost:8501`.
+
+### Backfill histórico
+
+Para mostrar meses anteriores en el dashboard, se debe ejecutar backfill del DAG `panopto_production_runner` a las fechas deseadas. Cada corrida genera los resultados de `panopto_metric_result`, `panopto_alert_aggregate` y `panopto_execution_log` para ese `information_date`. El dashboard las consume a través de `panopto_dashboard_semaphore` y `panopto_dashboard_model_summary`, mostrando toda la historia disponible.
+
+```bash
+airflow dags backfill panopto_production_runner \
+  --start-date 2026-01-07 \
+  --end-date 2026-08-07 \
+  --reset-dagruns
+```
+
+Por defecto, el dashboard ya inicia el selector de fechas en el rango completo del modelo seleccionado.
 
 ## Restructuración de tablas de configuración
 

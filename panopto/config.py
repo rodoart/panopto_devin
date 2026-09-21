@@ -1,6 +1,7 @@
 """Módulo config con la(s) clase(s) Settings."""
 
 import os
+from typing import Optional
 
 __path__ = [os.path.join(os.path.dirname(__file__), "config")]
 
@@ -24,6 +25,8 @@ class Settings:
     smtp_user: str
     smtp_password: str
     hdfs_staging_base: str
+    kinit_keytab: Optional[str]
+    kinit_principal: Optional[str]
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -45,6 +48,8 @@ class Settings:
             PANOPTO_SMTP_USER: usuario SMTP.
             PANOPTO_SMTP_PASSWORD: contraseña SMTP.
             PANOPTO_HDFS_STAGING_BASE: ruta HDFS para staging de parquet atómico.
+            PANOPTO_KINIT_KEYTAB: ruta al keytab de Kerberos (opcional).
+            PANOPTO_KINIT_PRINCIPAL: principal de Kerberos (opcional).
         """
         return cls(
             env=os.getenv("PANOPTO_ENV", "dev"),
@@ -61,4 +66,6 @@ class Settings:
             smtp_user=os.getenv("PANOPTO_SMTP_USER", "alerts@example.com"),
             smtp_password=os.getenv("PANOPTO_SMTP_PASSWORD", "CHANGEME"),
             hdfs_staging_base=os.getenv("PANOPTO_HDFS_STAGING_BASE", "/tmp/panopto/staging"),
+            kinit_keytab=os.getenv("PANOPTO_KINIT_KEYTAB"),
+            kinit_principal=os.getenv("PANOPTO_KINIT_PRINCIPAL"),
         )

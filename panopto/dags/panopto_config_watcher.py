@@ -112,9 +112,10 @@ def mode_training(**context: Any) -> None:
     """)
     models = [str(r.model_id) for r in df.collect()]
     tm = TrainingMode(spark, reader)
+    information_date = context.get("dag_run", {}).conf.get("information_date") if context.get("dag_run") else None
     for model_id in models:
         try:
-            tm.run(model_id, today, context["run_id"])
+            tm.run(model_id, today, context["run_id"], information_date=information_date)
             logger.info(f"training ok for {model_id}")
         except Exception as exc:
             logger.error(f"training failed for {model_id}: {exc}")

@@ -237,8 +237,21 @@ class TrainingMode:
             "category_policy_process_date": category_policy_pd,
         }
 
-    def run(self, model_id: str, process_date: str, execution_id: str) -> bool:
-        """Método que ejecuta."""
+    def run(
+        self,
+        model_id: str,
+        process_date: str,
+        execution_id: str,
+        information_date: Optional[str] = None,
+    ) -> bool:
+        """Método que ejecuta.
+
+        Args:
+            process_date: fecha de proceso y partición de salida.
+            information_date: fecha para la cual se leen las tablas de datos.
+                Si no se indica, se deriva de process_date usando la frecuencia y
+                día de ejecución del modelo.
+        """
         model_id = str(model_id)
         process_date = str(process_date)
         logger.info(f"starting training for model {model_id}, process_date {process_date}")
@@ -249,12 +262,14 @@ class TrainingMode:
         frequency = str(model_summary.get("frequency", "daily"))
         execution_monthly_day = model_summary.get("execution_monthly_day")
         execution_weekday = model_summary.get("execution_weekday")
-        information_date = self._reference_date(
-            process_date,
-            frequency,
-            execution_monthly_day,
-            execution_weekday,
-        )
+        if information_date is None:
+            information_date = self._reference_date(
+                process_date,
+                frequency,
+                execution_monthly_day,
+                execution_weekday,
+            )
+        information_date = str(information_date)
         logger.info(f"training information_date for {model_id}: {information_date}")
         writer = AtomicParquetWriter(self.spark)
         checkpoint_key = self._checkpoint_key(model_id, process_date, variables, category_policy)

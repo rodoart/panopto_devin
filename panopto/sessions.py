@@ -7,6 +7,7 @@ from pyspark.sql import SparkSession
 
 from panopto.config import Settings
 from panopto.config.tables import PROCESS_CONFIG
+from panopto.kerberos import refresh_ticket
 from panopto.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,6 +22,7 @@ class SparkSessionBuilder:
 
     def build(self) -> SparkSession:
         """Método que construye."""
+        refresh_ticket()
         settings = Settings.from_env()
         builder = SparkSession.builder.appName(self.app_name)
         warehouse_dir = PROCESS_CONFIG.hive_warehouse_dir or settings.hive_warehouse_dir

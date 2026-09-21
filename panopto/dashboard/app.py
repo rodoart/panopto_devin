@@ -1,5 +1,7 @@
 """Aplicación de Streamlit para el dashboard PANOPTO."""
 
+from datetime import date
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -27,8 +29,15 @@ selected_model = st.sidebar.selectbox(
     models if models else ["1079_cta_lvl"],
 )
 
-start = st.sidebar.date_input("Fecha inicio")
-end = st.sidebar.date_input("Fecha fin")
+min_date_str, max_date_str = data.get_date_range(selected_model)
+start_default = date.fromisoformat(min_date_str) if min_date_str else date.today()
+end_default = date.fromisoformat(max_date_str) if max_date_str else date.today()
+start, end = st.sidebar.date_input(
+    "Rango de fechas",
+    value=(start_default, end_default),
+    min_value=start_default,
+    max_value=end_default,
+)
 
 with st.spinner("Cargando datos..."):
     sem = data.get_semaphore(
