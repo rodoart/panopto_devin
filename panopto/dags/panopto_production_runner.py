@@ -34,6 +34,7 @@ def run_production(**context: Any) -> None:
     from panopto.config.schemas import OutputSchemas
     from panopto.io.atomic_parquet_writer import AtomicParquetWriter
     from panopto.metrics.runner import MetricRunner, MissingDataError
+    from panopto.metrics.summary import ScoringSummaryBuilder
     from panopto.sessions import PostgresSession, SparkSessionBuilder
 
     spark = SparkSessionBuilder(app_name="panopto_production_runner").build()
@@ -196,6 +197,45 @@ def run_production(**context: Any) -> None:
                 schema=schemas.get(PROCESS_CONFIG.variable_summary_table),
             )
             writer.write_atomic(summary_df, PROCESS_CONFIG.variable_summary_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+
+        # Data Availability Monitoring: reutiliza la misma configuración/DataReader del runner.
+        try:
+            availability_rows = runner.check_data_availability(model_id, information_date)
+        except Exception as exc:
+            logger.warning(f"data availability check failed for {model_id}/{information_date}: {exc}")
+            availability_rows = []
+        data_availability_done = bool(availability_rows) and all(
+            r["control"] == "Latest Data Updated" for r in availability_rows
+        )
+        if availability_rows:
+            availability_df = spark.createDataFrame(
+                schemas.normalize_rows(
+                    PROCESS_CONFIG.data_availability_table,
+                    [{**r, "execution_id": execution_id, "run_date": dt.now()} for r in availability_rows],
+                ),
+                schema=schemas.get(PROCESS_CONFIG.data_availability_table),
+            )
+            writer.write_atomic(availability_df, PROCESS_CONFIG.data_availability_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+
+        # Summary Scoring Monitoring: fila canónica agregada de los MISMOS resultados (sin motor separado).
+        scoring_summary_row = ScoringSummaryBuilder.build(
+            model_id=model_id,
+            model_name=model.get("model_name", model_id),
+            information_date=information_date,
+            vintage=runner._vintage_for(information_date),
+            results=results,
+            summaries=runner.summaries,
+            data_availability_done=data_availability_done,
+        )
+        scoring_summary_df = spark.createDataFrame(
+            schemas.normalize_rows(
+                PROCESS_CONFIG.scoring_summary_table,
+                [{**scoring_summary_row, "execution_id": execution_id, "run_date": dt.now()}],
+            ),
+            schema=schemas.get(PROCESS_CONFIG.scoring_summary_table),
+        )
+        writer.write_atomic(scoring_summary_df, PROCESS_CONFIG.scoring_summary_table, model_id, information_date, execution_id, partition_cols=["information_date", "model_id"])
+
         log_df = spark.createDataFrame(
             schemas.normalize_rows(PROCESS_CONFIG.execution_log_table, [{
                 "execution_id": execution_id,

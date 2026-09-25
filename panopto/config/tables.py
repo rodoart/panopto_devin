@@ -30,6 +30,8 @@ class ProcessConfig:
     variable_summary_table: str = "gcprmsbx_work.panopto_variable_summary"
     dashboard_semaphore_table: str = "gcprmsbx_work.panopto_dashboard_semaphore"
     dashboard_model_summary_table: str = "gcprmsbx_work.panopto_dashboard_model_summary"
+    scoring_summary_table: str = "gcprmsbx_work.panopto_scoring_summary"
+    data_availability_table: str = "gcprmsbx_work.panopto_data_availability"
     banamex_calendar_table: str = "gcprmsbx_work.panopto_banamex_calendar"
     external_banamex_calendar_table: str = "gcprmsbx_work.panopto_banamex_calendar_ext_d"
 

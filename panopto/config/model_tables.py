@@ -70,6 +70,7 @@ class ModelTableConfig:
     active: bool = True
     model_id: Optional[str] = None
     process_date: Optional[str] = None
+    deadline_days: Optional[int] = None
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "ModelTableConfig":
@@ -94,6 +95,7 @@ class ModelTableConfig:
             active=bool(row.get("active", True)),
             model_id=row.get("model_id"),
             process_date=row.get("process_date"),
+            deadline_days=_parse_int(row.get("deadline_days")),
         )
 
     def format_date(self, iso_date: str) -> str:

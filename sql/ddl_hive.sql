@@ -315,7 +315,8 @@ CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_model_table_config (
     partition_columns STRING -- JSON con columnas de partición,
     reading_mode STRING -- each, first o last,
     use_business_days BOOLEAN -- True si la resolución de fechas debe usar días hábiles; False para días calendario,
-    active BOOLEAN -- True si la configuración está activa
+    active BOOLEAN -- True si la configuración está activa,
+    deadline_days INT -- Días tras el fin de periodo (vintage) para exigir la ingesta de datos; usado por Data Availability Monitoring
 )
 PARTITIONED BY (
     process_date STRING,
@@ -360,6 +361,51 @@ CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_banamex_calendar_ext_d (
     is_holiday BOOLEAN,
     holiday_name STRING,
     sync_timestamp TIMESTAMP
+)
+STORED AS PARQUET
+;
+
+
+-- Fila canónica "Summary Scoring Monitoring" (tablero PANOPTO), una por modelo/information_date.
+-- Se calcula agregando los MetricResult del mismo motor (MetricRunner), sin motores de prueba separados.
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_scoring_summary (
+    model_name STRING,
+    scoring_date STRING,
+    vintage STRING -- Usage Month (primer día del mes de scoring_date),
+    control_data_availability STRING -- DONE / PENDING,
+    control_pre_scoring STRING -- OK / Reprocess,
+    psi DOUBLE -- PSI del score contra bins canónicos de dev,
+    psi_variation DOUBLE -- PSI Variation del score contra el periodo baseline,
+    csi_max DOUBLE -- máximo PSI canónico entre variables raw/input,
+    csi_status STRING -- OK / Stop,
+    population_scored DOUBLE -- conteo de la población scoreada,
+    general_status STRING -- OK / WARNING / DQR Process Pending / Reprocess,
+    execution_id STRING,
+    run_date TIMESTAMP
+)
+PARTITIONED BY (
+    information_date STRING,
+    model_id STRING
+)
+STORED AS PARQUET
+;
+
+
+-- Control "Data Availability Monitoring" por fuente (schema.source_table) y modelo/information_date.
+CREATE TABLE IF NOT EXISTS gcprmsbx_work.panopto_data_availability (
+    schema_name STRING,
+    source_table STRING,
+    scoring_date STRING,
+    deadline_data_ingestion STRING,
+    vintage STRING,
+    update_data_required STRING,
+    control STRING -- Latest Data Updated / Data ingestion in progress / Data Ingestation has not met the deadline / Not enough data to process the models,
+    execution_id STRING,
+    run_date TIMESTAMP
+)
+PARTITIONED BY (
+    information_date STRING,
+    model_id STRING
 )
 STORED AS PARQUET
 ;

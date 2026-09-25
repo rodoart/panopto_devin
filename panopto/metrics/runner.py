@@ -54,6 +54,10 @@ DEFAULT_THRESHOLDS = {
     "ks_score_target": {"threshold_ambar": 0.05, "threshold_red": 0.10},
     "correlation_drift": {"threshold_ambar": 0.10, "threshold_red": 0.20},
     "auc": {},
+    # Métricas del control Pre Scoring / Population Scored oficial.
+    "median_shift": {"threshold_ambar": 0.10, "threshold_red": 0.20},
+    "population_variation": {"threshold_ambar": 0.15, "threshold_red": 0.30},
+    "completeness": {"threshold_ambar": 0.0001, "threshold_red": 0.20},
 }
 
 RELATIVE_METRICS = {
@@ -78,7 +82,13 @@ NEEDS_BASELINE_DATA = {
     "calibration_slope",
     "ks_score_target",
     "correlation_drift",
+    "median_shift",
+    "population_variation",
 }
+
+# Métricas que alimentan directamente el control oficial "Pre Scoring"
+# (Population Growth / Median Shift / Completeness). Ver Ilustración 5.
+PRE_SCORING_METRICS = {"median_shift", "population_variation", "completeness"}
 
 
 class MetricRunner:
@@ -238,6 +248,9 @@ class MetricRunner:
                     params["bins"] = csi_bins.get((var, var_type), [])
                 if metric_name == "category_composition_drift":
                     params["top_n"] = category_policy.get(var, {}).get("top_n_threshold", 10)
+                if metric_name == "completeness":
+                    params["expected_dates"] = self.data_reader._format_dates(spec, current_dates)
+                    params["date_column"] = spec.date_column or spec.information_date_column
                 metric_cls = MetricRegistry.get(metric_name)
                 try:
                     res = metric_cls().calculate(current, baseline, thresholds, **params)
@@ -351,6 +364,92 @@ class MetricRunner:
             self.checkpoint.write(summaries_df, checkpoint_key, "summaries")
 
         return results
+
+    def check_data_availability(
+        self,
+        model_id: str,
+        information_date: str,
+        as_of: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+        """Evalúa la frescura de cada fuente configurada para el modelo.
+
+        Reutiliza la misma configuración (``model_table_configs``) y el mismo
+        ``DataReader`` usados por :meth:`run`, para reproducir el control
+        oficial "Data Availability Monitoring": por cada fuente única
+        (``source_schema``.``source_table``) compara la fecha máxima
+        disponible contra la fecha de scoring y el plazo (``deadline_days``)
+        configurado en ``panopto_model_table_config``.
+
+        Devuelve una lista de filas listas para persistirse en
+        ``panopto_data_availability``, con ``control`` en uno de:
+        ``Latest Data Updated``, ``Data ingestion in progress``,
+        ``Data Ingestation has not met the deadline`` o
+        ``Not enough data to process the models``.
+        """
+        model_id = str(model_id)
+        information_date = str(information_date)
+        table_configs = self.model_table_configs or self._load_model_table_configs(model_id)
+        today = as_of or datetime.now().date()
+        vintage = self._vintage_for(information_date)
+        seen = set()
+        rows: List[Dict[str, Any]] = []
+        for cfg in table_configs.values():
+            key = (cfg.source_schema, cfg.source_table)
+            if key in seen:
+                continue
+            seen.add(key)
+            deadline_days = cfg.deadline_days if cfg.deadline_days is not None else 0
+            deadline = (datetime.fromisoformat(vintage).date() + timedelta(days=deadline_days)).isoformat()
+            max_date = self._max_available_date(cfg)
+            if max_date and max_date >= information_date:
+                control = "Latest Data Updated"
+            elif today <= datetime.fromisoformat(deadline).date():
+                control = "Data ingestion in progress"
+            elif max_date:
+                control = "Data Ingestation has not met the deadline"
+            else:
+                control = "Not enough data to process the models"
+            rows.append({
+                "model_id": model_id,
+                "information_date": information_date,
+                "schema_name": cfg.source_schema or "",
+                "source_table": cfg.source_table,
+                "scoring_date": information_date,
+                "deadline_data_ingestion": deadline,
+                "vintage": vintage,
+                "update_data_required": information_date,
+                "control": control,
+            })
+        return rows
+
+    @staticmethod
+    def _vintage_for(information_date: str) -> str:
+        """Primer día del mes de ``information_date`` (Usage Month / Vintage)."""
+        d = datetime.fromisoformat(information_date).date()
+        return d.replace(day=1).isoformat()
+
+    def _max_available_date(self, cfg: ModelTableConfig) -> Optional[str]:
+        """Devuelve la fecha máxima (ISO) disponible en la fuente configurada."""
+        try:
+            spec = DataSourceSpec.from_model_table(cfg, source_column="", information_date_column=cfg.date_column or "")
+            df = self.data_reader._load_source(spec)
+            df = self.data_reader._apply_transform(df, spec)
+            date_col = cfg.date_column
+            if not date_col or date_col not in df.columns:
+                return None
+            row = df.agg(F.max(F.col(date_col)).alias("m")).collect()[0]
+            raw_max = row["m"]
+            if raw_max is None:
+                return None
+            if cfg.date_format:
+                try:
+                    return datetime.strptime(str(raw_max), cfg.date_format).date().isoformat()
+                except Exception:
+                    return str(raw_max)
+            return str(raw_max)
+        except Exception as exc:
+            logger.warning(f"could not resolve max date for {cfg.source_table}: {exc}")
+            return None
 
     def _align_for_join(self, df: Any, spec: DataSourceSpec, anchor_dates: List[str]) -> Any:
         """Filtra un DataFrame a las fechas ancla, normaliza la fecha y fuerza unicidad antes del join."""
@@ -528,7 +627,7 @@ class MetricRunner:
         if var_type in ("raw", "input", "transformed"):
             metrics.append("cardinality_ratio")
             if data_type == "numeric":
-                metrics.extend(["outlier_rate", "psi_canonical", "psi_dynamic", "ks_vs_dev"])
+                metrics.extend(["outlier_rate", "psi_canonical", "psi_dynamic", "ks_vs_dev", "median_shift"])
             elif data_type == "categorical":
                 metrics.extend([
                     "dominant_category_rate",
@@ -536,6 +635,9 @@ class MetricRunner:
                     "psi_canonical",
                     "psi_dynamic",
                 ])
+            # Population Growth y Completeness alimentan el control Pre Scoring
+            # para cualquier fuente raw/input, sin importar el tipo de dato.
+            metrics.extend(["population_variation", "completeness"])
         elif var_type == "score":
             metrics.extend([
                 "range_violation",
@@ -548,6 +650,8 @@ class MetricRunner:
                 "concentration_gini",
                 "psi_approved",
                 "psi_rejected",
+                # Population Scored oficial.
+                "population_variation",
             ])
         elif var_type == "target":
             metrics.extend(["event_rate", "psi_target"])

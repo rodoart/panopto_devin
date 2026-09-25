@@ -1133,5 +1133,158 @@
       "type": "timestamp",
       "nullable": true
     }
+  ],
+  "scoring_summary": [
+    {
+      "name": "model_name",
+      "type": "string",
+      "nullable": true,
+      "description": "Nombre del modelo"
+    },
+    {
+      "name": "scoring_date",
+      "type": "string",
+      "nullable": true,
+      "description": "Scoring Dt oficial"
+    },
+    {
+      "name": "vintage",
+      "type": "string",
+      "nullable": true,
+      "description": "Usage Month (Vintage)"
+    },
+    {
+      "name": "control_data_availability",
+      "type": "string",
+      "nullable": true,
+      "description": "Control: Data Availability (DONE / PENDING)"
+    },
+    {
+      "name": "control_pre_scoring",
+      "type": "string",
+      "nullable": true,
+      "description": "Control Pre Scoring (OK / Reprocess)"
+    },
+    {
+      "name": "psi",
+      "type": "double",
+      "nullable": true,
+      "description": "PSI del score contra bins canónicos de dev"
+    },
+    {
+      "name": "psi_variation",
+      "type": "double",
+      "nullable": true,
+      "description": "PSI Variation del score contra el periodo baseline"
+    },
+    {
+      "name": "csi_max",
+      "type": "double",
+      "nullable": true,
+      "description": "CSI Max: máximo PSI canónico entre variables raw/input"
+    },
+    {
+      "name": "csi_status",
+      "type": "string",
+      "nullable": true,
+      "description": "CSI (OK / Stop)"
+    },
+    {
+      "name": "population_scored",
+      "type": "double",
+      "nullable": true,
+      "description": "Population Scored: conteo de la población scoreada"
+    },
+    {
+      "name": "general_status",
+      "type": "string",
+      "nullable": true,
+      "description": "General Status (OK / WARNING / DQR Process Pending / Reprocess)"
+    },
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "run_date",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
+  ],
+  "data_availability": [
+    {
+      "name": "schema_name",
+      "type": "string",
+      "nullable": true,
+      "description": "Schema de la fuente"
+    },
+    {
+      "name": "source_table",
+      "type": "string",
+      "nullable": true,
+      "description": "Source (tabla física) de la fuente"
+    },
+    {
+      "name": "scoring_date",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "deadline_data_ingestion",
+      "type": "string",
+      "nullable": true,
+      "description": "Fecha límite para la ingesta de datos"
+    },
+    {
+      "name": "vintage",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "update_data_required",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "control",
+      "type": "string",
+      "nullable": true,
+      "description": "Latest Data Updated / Data ingestion in progress / Data Ingestation has not met the deadline / Not enough data to process the models"
+    },
+    {
+      "name": "execution_id",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "run_date",
+      "type": "timestamp",
+      "nullable": true
+    },
+    {
+      "name": "information_date",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    },
+    {
+      "name": "model_id",
+      "type": "string",
+      "nullable": true,
+      "partition": true
+    }
   ]
 }

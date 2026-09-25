@@ -75,3 +75,75 @@ class DashboardData:
         if not pdf.empty:
             pdf["information_date"] = pd.to_datetime(pdf["information_date"])
         return pdf
+
+    def get_scoring_summary(
+        self,
+        model_id: Optional[str] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Carga la fila canónica "Summary Scoring Monitoring" (panopto_scoring_summary)."""
+        df = self._apply_filters(
+            self.spark.table(PROCESS_CONFIG.scoring_summary_table), model_id, start, end
+        ).orderBy("model_id", "information_date")
+        pdf = df.toPandas()
+        if not pdf.empty:
+            pdf["information_date"] = pd.to_datetime(pdf["information_date"])
+        return pdf
+
+    def get_data_availability(
+        self,
+        model_id: Optional[str] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Carga el control "Data Availability Monitoring" (panopto_data_availability)."""
+        df = self._apply_filters(
+            self.spark.table(PROCESS_CONFIG.data_availability_table), model_id, start, end
+        ).orderBy("model_id", "information_date", "source_table")
+        pdf = df.toPandas()
+        if not pdf.empty:
+            pdf["information_date"] = pd.to_datetime(pdf["information_date"])
+        return pdf
+
+    def get_metric_results(
+        self,
+        model_id: Optional[str] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        var_types: Optional[list] = None,
+        metric_names: Optional[list] = None,
+    ) -> pd.DataFrame:
+        """Carga panopto_metric_result con filtros por var_type y metric_name."""
+        df = self._apply_filters(
+            self.spark.table(PROCESS_CONFIG.metric_result_table), model_id, start, end
+        )
+        if var_types:
+            df = df.filter(F.col("var_type").isin(var_types))
+        if metric_names:
+            df = df.filter(F.col("metric_name").isin(metric_names))
+        pdf = df.orderBy("information_date").toPandas()
+        if not pdf.empty:
+            pdf["information_date"] = pd.to_datetime(pdf["information_date"])
+        return pdf
+
+    def get_variable_summary(
+        self,
+        model_id: Optional[str] = None,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        var_types: Optional[list] = None,
+        statistics: Optional[list] = None,
+    ) -> pd.DataFrame:
+        """Carga panopto_variable_summary con filtros por var_type y statistic."""
+        df = self._apply_filters(
+            self.spark.table(PROCESS_CONFIG.variable_summary_table), model_id, start, end
+        )
+        if var_types:
+            df = df.filter(F.col("var_type").isin(var_types))
+        if statistics:
+            df = df.filter(F.col("statistic").isin(statistics))
+        pdf = df.orderBy("information_date").toPandas()
+        if not pdf.empty:
+            pdf["information_date"] = pd.to_datetime(pdf["information_date"])
+        return pdf

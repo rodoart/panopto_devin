@@ -18,6 +18,7 @@ cp .env.example .env
 | Configuración (`gcprmsbx_work.panopto_model_summary_csi_psi`, `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_csi_psi_table`, `gcprmsbx_work.panopto_tresholds_table`, `gcprmsbx_work.panopto_alert_policy`, `gcprmsbx_work.panopto_category_policy`, `gcprmsbx_work.panopto_variable_metadata`) | Hive / Parquet |
 | Calendario (`gcprmsbx_work.panopto_banamex_calendar`) | Hive / Parquet |
 | Estado y resultados (`gcprmsbx_work.panopto_config_changelog`, `gcprmsbx_work.panopto_category_baseline_rank`, `gcprmsbx_work.panopto_metric_threshold_auto`, `gcprmsbx_work.panopto_metric_result`, `gcprmsbx_work.panopto_alert_aggregate`, `gcprmsbx_work.panopto_execution_log`, `gcprmsbx_work.panopto_email_log`, `gcprmsbx_work.panopto_staging_control`, `gcprmsbx_work.panopto_variable_summary`) | Hive / Parquet |
+| Tablero PANOPTO (`gcprmsbx_work.panopto_scoring_summary`, `gcprmsbx_work.panopto_data_availability`) | Hive / Parquet |
 | Calendario (`banamex_calendar_sync_d`) | PostgreSQL |
 | Contactos (`model_contact`) | PostgreSQL |
 | Lista roja global (`red_alert_list_d`) | PostgreSQL |
@@ -60,6 +61,7 @@ Toda la configuración de las tablas `score`, `target`, `raw`, `input` y `proces
 - `lag`: desfase en meses respecto a la fecha actual.
 - `sql_transform`: expresiones del `SELECT` (sin la cláusula `FROM`) para limpiar/renombrar columnas antes de leer.
 - `partition_columns`: columnas de partición adicionales (como JSON).
+- `deadline_days`: días tras el fin del periodo (vintage) por los que se tolera la ausencia de datos de esa fuente antes de marcarla como incumplida en el control "Data Availability Monitoring" del dashboard.
 
 `DataReader` aplica el `sql_transform`, formatea las fechas al formato de la tabla, renombra las llaves locales a las llaves canónicas y lee solo las columnas necesarias. `MetricRunner` y `TrainingMode` cargan esta configuración automáticamente desde la última partición del modelo, por lo que un `score` con llave `customer_id` puede unirse a un `target` con llave `num_cliente` si ambas comparten las mismas `canonical_key_columns`.
 
@@ -168,7 +170,9 @@ result = MetricCls().calculate(
 print(result)
 ```
 
-Métricas registradas actualmente: `null_rate`, `cardinality_ratio`, `outlier_rate`, `dominant_category_rate`, `category_composition_drift`, `psi_canonical`, `psi_dynamic`, `ks_vs_dev`, `correlation_drift`, `range_violation`, `entropy`, `approval_rate`, `tail_shift`, `concentration_gini`, `psi_approved`, `psi_rejected`, `auc`, `gini`, `brier_score`, `lift_top_decile`, `event_rate`, `psi_target`, `calibration_slope`, `ks_score_target`.
+Métricas registradas actualmente: `null_rate`, `cardinality_ratio`, `outlier_rate`, `dominant_category_rate`, `category_composition_drift`, `median_shift`, `population_variation`, `completeness`, `psi_canonical`, `psi_dynamic`, `ks_vs_dev`, `correlation_drift`, `range_violation`, `entropy`, `approval_rate`, `tail_shift`, `concentration_gini`, `psi_approved`, `psi_rejected`, `auc`, `gini`, `brier_score`, `lift_top_decile`, `event_rate`, `psi_target`, `calibration_slope`, `ks_score_target`.
+
+`median_shift`, `population_variation` y `completeness` alimentan el control oficial "Pre Scoring" y "Population Scored" del dashboard (ver sección Dashboard más abajo); no requieren un motor de pruebas distinto, se calculan y agregan igual que cualquier otra métrica del `MetricRegistry`.
 
 `gcprmsbx_work.panopto_variable_summary` guarda estadísticos descriptivos por variable: `count_total`, `count_non_null`, `count_null`, `min`, `max`, `mean`, `std`, deciles (`p10` ... `p90`) para numéricas; `distinct_count`, `top_category`, `top_category_count` para categóricas.
 
@@ -287,6 +291,25 @@ python3 -m pytest tests/ -q
 
 El directorio `tests/` contiene un suite de pruebas unitarias con fixtures compartidas (`spark`, `postgres_connection`, `sample_data`, `checkpoint`). El fixture `checkpoint` devuelve una instancia de `panopto.checkpoint.Checkpoint` apuntando a un directorio temporal, lo que permite verificar que las corridas de `MetricRunner` se reutilizan en reejecuciones. Algunos tests dependen de un entorno local con PySpark; si el runtime de Spark/HDFS no está disponible, al menos ejecuta `python3 -m py_compile tests/**/*.py` para validar la sintaxis.
 
+### Modo local (virtualenv + Spark local)
+
+Existe una opción de pruebas **local** que crea un virtualenv aislado (`.venv-local/`) e instala Spark vía `pip` (`pyspark==3.3.2`, la versión pineada en `pyproject.toml`). No interviene con el ambiente conda/cluster: todo queda dentro del venv y de las variables que exporta el propio script.
+
+```bash
+make local-env      # crea .venv-local e instala requirements-local.txt
+make test-local     # corre pytest dentro del venv (PANOPTO_TEST_MODE=local)
+make demo-local     # ejemplo mínimo: métricas reales sobre samples/sources en Spark local[*]
+# equivalente sin make: scripts/setup_local_env.sh, scripts/run_local_tests.sh,
+# scripts/run_local_demo.sh (este último ejecuta scripts/local_smoke.py)
+```
+
+El modo es parametrizable:
+
+- `pytest --mode={auto,local,cluster}` o `PANOPTO_TEST_MODE` (default `auto`, comportamiento actual). En `local` se saltan tests marcados `@pytest.mark.cluster` y viceversa.
+- `PANOPTO_LOCAL_VENV`, `PANOPTO_LOCAL_PYTHON` (default: autodetecta python3.10/3.9/3.8 — PySpark 3.3 requiere ≤3.10), `PANOPTO_LOCAL_REQUIREMENTS`, `PANOPTO_LOCAL_PYTEST_ARGS`.
+- `PANOPTO_TEST_SPARK_MASTER` (default `local[*]`) y `PANOPTO_TEST_SPARK_CONF` (JSON con conf extra de Spark para la sesión de tests).
+- Si el JDK detectado es ≥16, `scripts/run_local_tests.sh` exporta los `--add-opens` que Spark 3.3 necesita (`JDK_JAVA_OPTIONS`); con Java 8/11 no hace falta.
+
 ## Agregar un nuevo modelo
 
 La mínima información para registrar un modelo nuevo se carga con `scripts/onboard_model.py`. Antes de correrlo edita el diccionario `MODEL` al inicio del script con:
@@ -326,7 +349,7 @@ Para targets continuas, el campo `model_type` en `gcprmsbx_work.panopto_model_su
 
 ## Dashboard con Streamlit
 
-El tablero consume las vistas `gcprmsbx_work.panopto_dashboard_semaphore` y `gcprmsbx_work.panopto_dashboard_model_summary` y se ejecuta con Streamlit. Es accesible directamente desde el navegador sin Tableau.
+El tablero se ejecuta con Streamlit (no usa Tableau) y reproduce, con la misma nomenclatura oficial, la estructura de pestañas del tablero de referencia. **No existen motores de prueba separados**: todas las pestañas leen resultados del mismo `MetricRunner` / `MetricRegistry` descrito arriba.
 
 ```bash
 streamlit run panopto/dashboard/app.py
@@ -334,9 +357,40 @@ streamlit run panopto/dashboard/app.py
 
 Se abre en `http://localhost:8501`.
 
+### Pestañas
+
+| Pestaña | Contenido | Fuente |
+|---------|-----------|--------|
+| **Summary Management** | Fila canónica "Summary Scoring Monitoring": Model, Scoring Dt, Vintage, Control Data Availability, Control Pre Scoring, PSI, PSI Variation, CSI Max, CSI, Population Scored, General Status. | `gcprmsbx_work.panopto_scoring_summary` |
+| **Pre Scoring Summary** | Resultado (PASS/WARNING/FAIL) de los 3 chequeos oficiales: %Raw variables above median variation thresholds, Observation windows availability, %Raw sources with growth rt within Thresholds. | `panopto_metric_result` (`median_shift`, `population_variation`, `completeness` sobre `raw`/`input`) |
+| **Data Availability** | Control por fuente (Schema, Source, Scoring Date, Deadline Data Ingestion, Vintage, Update Data Required, Control). | `gcprmsbx_work.panopto_data_availability` |
+| **Median Raw Variables** | Mediana histórica por variable raw/input. | `panopto_variable_summary` (`statistic='p50'`) |
+| **Raw Variable Distribution** | Percentiles de la última fecha por variable. | `panopto_variable_summary` |
+| **Raw Sources** | Population Growth / Completeness / Null Rate por fuente en el tiempo. | `panopto_metric_result` |
+| **Features & Score distribution** | Métricas y percentiles del score. | `panopto_metric_result`, `panopto_variable_summary` |
+| **CSI** | `psi_canonical` por variable raw/input (Characteristic Stability Index). | `panopto_metric_result` |
+| **PSI** | `psi_canonical` (PSI) y `psi_dynamic` (PSI Variation) del score. | `panopto_metric_result` |
+| **About** | Descripción de las fuentes y del semáforo. | — |
+
+### Control Pre Scoring y Population Scored (mismo motor)
+
+`MetricRunner` reutiliza el mismo `MetricRegistry` para calcular las 3 pruebas oficiales de Pre Scoring y "Population Scored", sin agregar un motor de pruebas separado:
+
+- `median_shift` (`panopto/metrics/quality.py`): variación relativa de la mediana vs. baseline por variable `raw`/`input` numérica → "%Raw variables above median variation thresholds".
+- `completeness` (`panopto/metrics/quality.py`): fracción de fechas esperadas (ventana de observación, según `history_months`/`lag`) sin datos → "Observation windows availability".
+- `population_variation` (`panopto/metrics/quality.py`): `|población_baseline / población_actual - 1|`, aplicada a `raw`/`input` (→ "%Raw sources with growth rt within Thresholds") y a `score` (→ "Population Scored").
+
+Los tres se registran igual que cualquier otra métrica (`MetricRegistry.register(...)`) y sus umbrales se configuran igual que las demás, vía `gcprmsbx_work.panopto_metric_threshold_auto` o los defaults de `DEFAULT_THRESHOLDS` en `panopto/metrics/runner.py`.
+
+`panopto/metrics/summary.ScoringSummaryBuilder` construye la fila canónica agregando esos mismos `MetricResult` (no recalcula nada): PSI/PSI Variation salen de `psi_canonical`/`psi_dynamic` sobre `score`; CSI/CSI Max salen de `psi_canonical` sobre `raw`/`input`; Control Pre Scoring es `Reprocess` si alguno de los 3 chequeos anteriores rompe su umbral (status `RED`); Population Scored es el conteo real de la población scoreada (`count_total` en `panopto_variable_summary`).
+
+### Data Availability Monitoring
+
+`MetricRunner.check_data_availability(model_id, information_date)` reutiliza la misma configuración (`panopto_model_table_config`) y el mismo `DataReader` para comparar, por cada fuente única (`source_schema`.`source_table`), la fecha máxima disponible contra `deadline_days` (nueva columna de `panopto_model_table_config`, días tras el fin del periodo/vintage para exigir la ingesta). El resultado (`Latest Data Updated` / `Data ingestion in progress` / `Data Ingestation has not met the deadline` / `Not enough data to process the models`) se persiste en `gcprmsbx_work.panopto_data_availability`.
+
 ### Backfill histórico
 
-Para mostrar meses anteriores en el dashboard, se debe ejecutar backfill del DAG `panopto_production_runner` a las fechas deseadas. Cada corrida genera los resultados de `panopto_metric_result`, `panopto_alert_aggregate` y `panopto_execution_log` para ese `information_date`. El dashboard las consume a través de `panopto_dashboard_semaphore` y `panopto_dashboard_model_summary`, mostrando toda la historia disponible.
+Para mostrar meses anteriores en el dashboard, se debe ejecutar backfill del DAG `panopto_production_runner` a las fechas deseadas. Cada corrida genera los resultados de `panopto_metric_result`, `panopto_alert_aggregate`, `panopto_execution_log`, `panopto_scoring_summary` y `panopto_data_availability` para ese `information_date`.
 
 ```bash
 airflow dags backfill panopto_production_runner \
@@ -361,17 +415,8 @@ Ver documentación detallada en:
 - `notebook/panopto_tablas.md` — campos, tipos y ejemplos de cada tabla.
 - `notebook/panopto_metricas.md` — catálogo completo de métricas.
 
-### Contenido
-
-- Selector de **modelo** y rango de **fechas**.
-- KPIs de semáforo: 🔴 rojas, 🟠 ámbar, 🟢 verdes y fecha más reciente.
-- Gráfico de **tendencia** de `stress_ratio` y conteo de alertas por día.
-- **Pie chart** de distribución de estados.
-- **Barras** de alertas por tipo de variable.
-- Tabla de **últimas métricas** por variable.
-- Tabla de **resumen** por tipo de variable.
-
 ### Estructura
 
-- `panopto/dashboard/data.py`: conexión a Spark y lectura de las vistas.
-- `panopto/dashboard/app.py`: aplicación Streamlit con Plotly.
+- `panopto/dashboard/data.py`: conexión a Spark y lectura de `panopto_scoring_summary`, `panopto_data_availability`, `panopto_metric_result` y `panopto_variable_summary`.
+- `panopto/dashboard/app.py`: aplicación Streamlit con `st.tabs()` y Plotly, una pestaña por control oficial.
+- `panopto/dashboard/builder.py`: vistas auxiliares (`panopto_dashboard_semaphore`, `panopto_dashboard_model_summary`) usadas por reportes de tendencia adicionales fuera del tablero oficial.

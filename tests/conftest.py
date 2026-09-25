@@ -1,6 +1,7 @@
 """Shared pytest configuration and fixtures for PANOPTO tests."""
 
 import datetime as dt
+import json
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -39,6 +40,33 @@ from pyspark.sql import Row, SparkSession  # noqa: E402
 import pyspark.sql.functions as F  # noqa: E402
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add the --mode option to select the test execution mode."""
+    parser.addoption(
+        "--mode",
+        action="store",
+        default=os.environ.get("PANOPTO_TEST_MODE", "auto"),
+        choices=["auto", "local", "cluster"],
+        help=(
+            "Test mode: 'local' skips @pytest.mark.cluster tests, 'cluster' skips "
+            "@pytest.mark.local tests, 'auto' (default) runs everything. "
+            "Can also be set via PANOPTO_TEST_MODE."
+        ),
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: List[pytest.Item]) -> None:
+    """Skip tests marked for the opposite mode when --mode is local or cluster."""
+    mode = config.getoption("--mode")
+    if mode == "auto":
+        return
+    opposite = "cluster" if mode == "local" else "local"
+    marker = pytest.mark.skip(reason=f"marked '{opposite}', skipped in --mode={mode}")
+    for item in items:
+        if opposite in item.keywords:
+            item.add_marker(marker)
+
+
 @pytest.fixture(scope="session")
 def spark() -> SparkSession:
     """Build a local SparkSession for the whole test session."""
@@ -46,12 +74,17 @@ def spark() -> SparkSession:
     checkpoint_base = os.environ.get("PANOPTO_CHECKPOINT_BASE", "/tmp/panopto_test_checkpoints")
     if os.path.isdir(checkpoint_base):
         shutil.rmtree(checkpoint_base, ignore_errors=True)
+    extra_conf = {
+        "spark.master": os.environ.get("PANOPTO_TEST_SPARK_MASTER", "local[*]"),
+        "spark.sql.shuffle.partitions": "2",
+        "spark.sql.adaptive.enabled": "false",
+    }
+    # Extra spark conf can be injected as JSON via PANOPTO_TEST_SPARK_CONF
+    # (used by scripts/run_local_tests.sh for Java-17 --add-opens, etc.).
+    extra_conf.update(json.loads(os.environ.get("PANOPTO_TEST_SPARK_CONF", "{}")))
     builder = SparkSessionBuilder(
         app_name="panopto-tests",
-        extra_conf={
-            "spark.sql.shuffle.partitions": "2",
-            "spark.sql.adaptive.enabled": "false",
-        },
+        extra_conf=extra_conf,
     )
     session = builder.build()
     session.sparkContext.setLogLevel("ERROR")

@@ -123,8 +123,79 @@ class CategoryCompositionDriftMetric(Metric):
         return self._make_result(value, jaccard, thresholds, **params)
 
 
+class MedianShiftMetric(Metric):
+    """Variación relativa de la mediana vs. baseline.
+
+    Alimenta el chequeo "%Raw variables above median variation thresholds"
+    del control Pre Scoring oficial.
+    """
+    name = "median_shift"
+
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
+        if baseline is None:
+            raise ValueError("median_shift requires a baseline dataframe")
+        variable = params["variable"]
+        current_median = df.approxQuantile(variable, [0.5], 0.01)
+        baseline_median = baseline.approxQuantile(variable, [0.5], 0.01)
+        current_value = current_median[0] if current_median else None
+        baseline_value = baseline_median[0] if baseline_median else None
+        if current_value is None or baseline_value is None:
+            return self._make_result(0.0, baseline_value, thresholds, **params)
+        if baseline_value != 0.0:
+            value = abs(current_value - baseline_value) / abs(baseline_value)
+        else:
+            value = 0.0 if current_value == 0.0 else 1.0
+        return self._make_result(value, baseline_value, thresholds, **params)
+
+
+class PopulationVariationMetric(Metric):
+    """Variación de volumen de población respecto al periodo baseline.
+
+    Cubre "Population Scored" (para ``score``) y "%Raw sources with growth
+    rt within Thresholds" (para ``raw``/``input``) usando la misma fórmula:
+    ``|población_anterior / población_actual - 1|``.
+    """
+    name = "population_variation"
+
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
+        if baseline is None:
+            raise ValueError("population_variation requires a baseline dataframe")
+        current_count = df.count()
+        baseline_count = baseline.count()
+        if current_count:
+            value = abs((baseline_count / current_count) - 1.0)
+        else:
+            value = 1.0 if baseline_count else 0.0
+        return self._make_result(value, float(baseline_count), thresholds, **params)
+
+
+class CompletenessMetric(Metric):
+    """Fracción de fechas esperadas (ventana de observación) sin datos.
+
+    Cubre el chequeo "Observation windows availability" del control Pre
+    Scoring oficial.
+    """
+    name = "completeness"
+
+    def calculate(self, df: Any, baseline: Any, thresholds: Any, **params: Any) -> Any:
+        """Método que calcula."""
+        expected_dates = params.get("expected_dates") or []
+        date_col = params.get("date_column")
+        if not expected_dates or not date_col or date_col not in df.columns:
+            return self._make_result(0.0, None, thresholds, **params)
+        present = {r[date_col] for r in df.select(F.col(date_col)).distinct().collect()}
+        missing = [d for d in expected_dates if d not in present]
+        value = len(missing) / len(expected_dates)
+        return self._make_result(value, None, thresholds, **params)
+
+
 MetricRegistry.register(NullRateMetric)
 MetricRegistry.register(CardinalityRatioMetric)
 MetricRegistry.register(OutlierRateMetric)
 MetricRegistry.register(DominantCategoryRateMetric)
 MetricRegistry.register(CategoryCompositionDriftMetric)
+MetricRegistry.register(MedianShiftMetric)
+MetricRegistry.register(PopulationVariationMetric)
+MetricRegistry.register(CompletenessMetric)

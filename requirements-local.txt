@@ -1,0 +1,9 @@
+# Dependencias del ambiente virtual LOCAL de PANOPTO.
+# Usado por scripts/setup_local_env.sh. No interviene con el ambiente
+# conda/cluster (environment.yml): es un venv aislado en .venv-local/.
+# pyspark se fija a la misma versión declarada en pyproject.toml.
+pyspark==3.3.2
+pytest>=7.0
+psycopg2-binary>=2.9
+pandas>=1.5,<2.1
+pyarrow>=10.0

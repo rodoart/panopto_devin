@@ -18,6 +18,10 @@ dev = ["pytest"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "local: tests that only make sense in the local virtualenv mode (skipped with --mode=cluster)",
+    "cluster: tests that require a real cluster (Hive/HDFS/Kerberos; skipped with --mode=local)",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
