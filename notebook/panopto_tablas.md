@@ -17,7 +17,7 @@ Configuración a nivel tabla (conexión, llaves, particiones, transformación, v
 | `table_name` | string | Alias corto de la tabla |
 | `source_type` | string | HIVE o PARQUET |
 | `source_schema` | string | Esquema Hive o None |
-| `source_table` | string | Nombre físico con prefijo hive: o parquet: |
+| `source_table` | string | Nombre físico de la fuente: `schema.tabla` para HIVE, ruta para PARQUET (el tipo lo determina `source_type`, sin prefijo URI). Es la clave de join con `variable_metadata.source_table` |
 | `entity_key_columns` | string | JSON con llaves de la fuente |
 | `canonical_key_columns` | string | JSON con llaves unificadas |
 | `date_column` | string | Columna de fecha de información |
@@ -27,9 +27,10 @@ Configuración a nivel tabla (conexión, llaves, particiones, transformación, v
 | `sql_transform` | string | Transformación SQL a aplicar en selectExpr |
 | `data_type` | string | numeric o categorical |
 | `partition_columns` | string | JSON con columnas de partición |
-| `reading_mode` | string | each, first o last |
+| `reading_mode` | string | each, first, last, first_partition o last_partition |
 | `use_business_days` | boolean | True si la resolución de fechas debe usar días hábiles; False para días calendario |
 | `active` | boolean | True si la configuración está activa |
+| `deadline_days` | int | Días tras el fin del periodo (vintage) para exigir la ingesta de datos; usado por `MetricRunner.check_data_availability` / Data Availability Monitoring |
 | `process_date` | string |  |
 | `model_id` | string |  |
 
@@ -441,5 +442,136 @@ Estadísticos descriptivos de cada variable.
 | `statistic_value_str` | string |  |
 | `information_date` | string |  |
 | `model_id` | string |  |
+
+---
+
+## `scoring_summary`
+
+Ruta Spark: `gcprmsbx_work.panopto_scoring_summary`
+
+
+Fila canónica "Summary Scoring Monitoring" (tablero PANOPTO): una por modelo/`information_date`. La construye `panopto.metrics.summary.ScoringSummaryBuilder` agregando los `MetricResult` del mismo `MetricRunner` (sin motores de prueba separados) y la escribe el DAG `panopto_production_runner`.
+
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `model_name` | string | Nombre del modelo |
+| `scoring_date` | string | Scoring Dt oficial |
+| `vintage` | string | Usage Month (primer día del mes de `scoring_date`) |
+| `control_data_availability` | string | Control: Data Availability (`DONE` / `PENDING`) |
+| `control_pre_scoring` | string | Control Pre Scoring (`OK` / `Reprocess`): `Reprocess` si alguna métrica de `PRE_SCORING_METRICS` (`median_shift`, `population_variation`, `completeness`) está en `RED` |
+| `psi` | double | PSI del score contra bins canónicos de dev (`psi_canonical`) |
+| `psi_variation` | double | PSI Variation del score contra el periodo baseline (`psi_dynamic`) |
+| `csi_max` | double | CSI Max: máximo PSI canónico entre variables raw/input |
+| `csi_status` | string | CSI (`OK` / `Stop`) |
+| `population_scored` | double | Population Scored: conteo de la población scoreada |
+| `general_status` | string | General Status (`OK` / `WARNING` / `DQR Process Pending` / `Reprocess`) |
+| `execution_id` | string |  |
+| `run_date` | timestamp |  |
+| `information_date` | string | Partición |
+| `model_id` | string | Partición |
+
+---
+
+## `data_availability`
+
+Ruta Spark: `gcprmsbx_work.panopto_data_availability`
+
+
+Control "Data Availability Monitoring": una fila por fuente única (`source_schema`.`source_table`) y modelo/`information_date`. Lo genera `MetricRunner.check_data_availability`, que compara la fecha máxima disponible de cada fuente contra `deadline_days`.
+
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `schema_name` | string | Schema de la fuente |
+| `source_table` | string | Source (tabla física) de la fuente |
+| `scoring_date` | string |  |
+| `deadline_data_ingestion` | string | Fecha límite para la ingesta de datos |
+| `vintage` | string |  |
+| `update_data_required` | string |  |
+| `control` | string | `Latest Data Updated` / `Data ingestion in progress` / `Data Ingestation has not met the deadline` / `Not enough data to process the models` |
+| `execution_id` | string |  |
+| `run_date` | timestamp |  |
+| `information_date` | string | Partición |
+| `model_id` | string | Partición |
+
+---
+
+## `banamex_calendar_ext_d`
+
+Ruta Spark: `gcprmsbx_work.panopto_banamex_calendar_ext_d`
+
+
+Tabla externa de calendario que publica el equipo de datos cada año. El DAG `panopto_calendar_loader` (1 de enero) la espera hasta 7 días, la copia a `panopto_banamex_calendar` y sincroniza `banamex_calendar_sync_d` en PostgreSQL. Mismo esquema que `banamex_calendar`: `calendar_date`, `is_business_day`, `is_holiday`, `holiday_name`, `sync_timestamp`. Sin particiones.
+
+
+---
+
+## Vistas del dashboard
+
+No son tablas físicas: las crea `panopto/dashboard/builder.py` (`CREATE OR REPLACE VIEW`) desde el DAG `panopto_output_validator`.
+
+- **`gcprmsbx_work.panopto_dashboard_semaphore`**: `metric_result` enriquecido con `aggregate_status`/`stress_ratio` de `alert_aggregate` y `execution_status`/`variables_missing` de `execution_log`.
+- **`gcprmsbx_work.panopto_dashboard_model_summary`**: un semáforo por modelo/`information_date` con el `aggregate_status` por `var_type` (score, input, raw, transformed, SYSTEM), `has_missing_data` y `var_types_evaluated`.
+
+---
+
+## Tablas PostgreSQL
+
+Definidas en `sql/ddl_postgres.sql`. No llevan `model_id`/`information_date` como partición Spark; son tablas relacionales operadas por `panopto.sessions.PostgresSession`.
+
+### `banamex_calendar_sync_d`
+
+Réplica del calendario Banamex en PostgreSQL (la alimenta `panopto_calendar_loader`).
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `calendar_date` | date | PK |
+| `is_business_day` | boolean |  |
+| `is_holiday` | boolean |  |
+| `holiday_name` | text |  |
+| `sync_timestamp` | timestamp |  |
+
+### `model_contact`
+
+Contactos por modelo para el despacho de alertas.
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `model_id` | text | PK compuesta |
+| `contact_email` | text | PK compuesta |
+| `contact_role` | text |  |
+| `notify_on_ambar` | boolean |  |
+| `notify_on_red` | boolean |  |
+| `notify_on_missing` | boolean |  |
+| `process_date` | date | PK compuesta |
+
+### `red_alert_list_d`
+
+Lista global de correos que reciben todas las alertas rojas (en BCC).
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `email` | text | PK |
+| `name` | text |  |
+| `is_active` | boolean |  |
+| `added_date` | date |  |
+
+### Copias del dashboard (`panopto_*`)
+
+Espejos PostgreSQL de las tablas Hive que consulta el tablero Streamlit (`DashboardData` no lee Spark). Las alimenta `panopto/dashboard/pg_sync.py` desde el DAG `panopto_dashboard_sync`, con sincronización incremental por partición `(information_date, model_id)` (reemplaza particiones nuevas/modificadas y borra huérfanas).
+
+Sin PK formal: la clave de sincronización es la partición `(information_date, model_id)` (DELETE + INSERT por partición). Las columnas de los espejos de tablas físicas derivan de `config/output_schemas.json`; las de las vistas replican las columnas de `panopto/dashboard/builder.py`.
+
+| Tabla PostgreSQL | Espejo de |
+|------------------|-----------|
+| `panopto_metric_result` | `gcprmsbx_work.panopto_metric_result` |
+| `panopto_variable_summary` | `gcprmsbx_work.panopto_variable_summary` |
+| `panopto_scoring_summary` | `gcprmsbx_work.panopto_scoring_summary` |
+| `panopto_data_availability` | `gcprmsbx_work.panopto_data_availability` |
+| `panopto_dashboard_semaphore` | vista `gcprmsbx_work.panopto_dashboard_semaphore` |
+| `panopto_dashboard_model_summary` | vista `gcprmsbx_work.panopto_dashboard_model_summary` |
+
+El DAG `panopto_dashboard_sync` no tiene schedule propio: lo disparan `panopto_production_runner` y `panopto_output_validator` cuando terminan de escribir en Hive. Acepta conf `{"information_date": ..., "model_id": ...}` para acotar el diff; sin conf hace diff completo de particiones.
 
 ---

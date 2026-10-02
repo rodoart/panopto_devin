@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from panopto.config.tables import PROCESS_CONFIG
 from panopto.dashboard.builder import build_dashboard_views as _build_dashboard_views
@@ -47,6 +48,7 @@ def trigger_tableau_refresh(**context: Any) -> None:
 
 def log_refresh(**context: Any) -> None:
     """Función que registra refresh."""
+    from datetime import datetime as dt
     from panopto.config.schemas import OutputSchemas
     from panopto.sessions import SparkSessionBuilder
     today = context["ds"]
@@ -98,4 +100,9 @@ with DAG(
     build_views = PythonOperator(task_id="build_dashboard_views", python_callable=build_dashboard_views)
     refresh = PythonOperator(task_id="trigger_tableau_refresh", python_callable=trigger_tableau_refresh)
     log = PythonOperator(task_id="log_refresh", python_callable=log_refresh)
-    validate >> build_views >> refresh >> log
+    trigger_sync = TriggerDagRunOperator(
+        task_id="trigger_dashboard_sync",
+        trigger_dag_id="panopto_dashboard_sync",
+        conf={"information_date": "{{ ds }}"},
+    )
+    validate >> build_views >> refresh >> log >> trigger_sync

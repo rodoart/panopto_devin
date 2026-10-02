@@ -40,15 +40,16 @@ class DataSourceSpec:
         if table_config is not None:
             return cls.from_model_table(table_config, source_column, information_date_column)
 
-        prefix, _, rest = source_table.partition(":")
-        source_type = prefix.upper() if prefix else "HIVE"
+        prefix, sep, rest = source_table.partition(":")
+        source_type = prefix.upper() if sep else "HIVE"
+        name = rest if sep else source_table
         if source_type == "HIVE":
-            parts = rest.split(".", 1)
+            parts = name.split(".", 1)
             schema = parts[0] if len(parts) == 2 else None
             table_or_path = parts[-1]
         else:
             schema = None
-            table_or_path = rest
+            table_or_path = name
 
         partition_cols = json.loads(partition_columns) if partition_columns else []
 

@@ -42,6 +42,27 @@ class DataReader:
         exprs = self._split_expressions(spec.sql_transform)
         return df.selectExpr(*exprs)
 
+    def dates_in_period(self, spec: DataSourceSpec, start: str, end: str) -> List[str]:
+        """Fechas ISO con particiones existentes en la fuente dentro de [start, end]."""
+        date_col = spec.date_column or spec.information_date_column
+        if not date_col:
+            return []
+        df = self._load_source(spec)
+        if date_col not in df.columns:
+            return []
+        raw = [r[0] for r in df.select(date_col).distinct().collect() if r[0] is not None]
+        out = []
+        for value in raw:
+            iso = str(value)[:10]
+            if spec.date_format:
+                try:
+                    iso = datetime.strptime(str(value), spec.date_format).date().isoformat()
+                except Exception:
+                    continue
+            if start <= iso <= end:
+                out.append(iso)
+        return sorted(dict.fromkeys(out))
+
     def _format_dates(self, spec: DataSourceSpec, reading_dates: List[str]) -> List[str]:
         """Convierte fechas ISO al formato propio de la tabla."""
         if not spec.date_format:

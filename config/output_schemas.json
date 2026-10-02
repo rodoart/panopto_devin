@@ -1045,6 +1045,12 @@
       "description": "True si la configuración está activa"
     },
     {
+      "name": "deadline_days",
+      "type": "int",
+      "nullable": true,
+      "description": "Dias de plazo tras el vintage para considerar la ingesta a tiempo (Data Availability)"
+    },
+    {
       "name": "process_date",
       "type": "string",
       "nullable": true,

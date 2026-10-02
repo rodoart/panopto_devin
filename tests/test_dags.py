@@ -8,11 +8,14 @@ import pytest
 
 DAG_FILES = [
     ("panopto_config_watcher", 4),
-    ("panopto_production_runner", 2),
+    ("panopto_production_runner", 3),
     ("panopto_alert_dispatcher", 2),
-    ("panopto_output_validator", 3),
+    ("panopto_output_validator", 5),
     ("panopto_orphan_cleanup", 1),
     ("panopto_calendar_loader", 3),
+    ("panopto_kinit", 1),
+    ("panopto_conda_pack", 1),
+    ("panopto_dashboard_sync", 1),
 ]
 
 

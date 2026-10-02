@@ -9,8 +9,10 @@ import pyspark.sql.functions as F
 from pyspark.sql import Row, SparkSession
 
 from panopto.binning import numeric_bins
+from panopto.config.model_tables import ModelTableConfig
 from panopto.config.tables import PROCESS_CONFIG
 from panopto.data.reader import DataReader
+from panopto.data.sources import DataSourceSpec
 from panopto.metrics.result import MetricResult
 from panopto.metrics.runner import MetricRunner, MissingDataError
 
@@ -94,7 +96,7 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             table_name="score",
             source_type="HIVE",
             source_table="scores",
-            source_schema=None,
+            source_schema="",
             entity_key_columns='["customer_id"]',
             canonical_key_columns='["customer_id"]',
             date_column="info_date_score",
@@ -115,7 +117,7 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             table_name="target",
             source_type="HIVE",
             source_table="targets",
-            source_schema=None,
+            source_schema="",
             entity_key_columns='["customer_id"]',
             canonical_key_columns='["customer_id"]',
             date_column="info_date_target",
@@ -136,7 +138,7 @@ def _create_mock_tables(spark: SparkSession, sample_data: dict, model_id: str = 
             table_name="raw",
             source_type="HIVE",
             source_table="raw",
-            source_schema=None,
+            source_schema="",
             entity_key_columns='["customer_id"]',
             canonical_key_columns='["customer_id"]',
             date_column="information_date",
@@ -237,30 +239,79 @@ def test_metric_runner_period_dates(spark: SparkSession):
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
 
     assert runner._period_dates("2025-01-15", "each", "daily") == ["2025-01-15"]
-    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-01"]
-    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-31"]
+    # use_business_days=True por default -> FakeCalendar devuelve el hábil.
+    assert runner._period_dates("2025-01-15", "first", "monthly") == ["2025-01-02"]
+    assert runner._period_dates("2025-01-15", "last", "monthly") == ["2025-01-30"]
     assert runner._period_dates("2025-01-15", "each", "monthly", use_business_days=False) == FakeCalendar().all_days_of_period("2025-01-15", "month")
 
 
 def test_metric_runner_resolve_dates_with_lag(spark: SparkSession):
-    """_resolve_dates desplaza el baseline según el lag de la tabla."""
+    """_resolve_dates desplaza la fecha current según el lag de la tabla."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
+    # lag=1 daily: la partición current se lee en t-1 y el baseline en t-2.
     current, baseline = runner._resolve_dates("2025-01-15", "each", "daily", lag=1)
-    assert current == ["2025-01-15"]
-    assert baseline == ["2025-01-14"]
+    assert current == ["2025-01-14"]
+    assert baseline == ["2025-01-13"]
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly", lag=2)
-    # FakeCalendar devuelve siempre 2025-01-01 para first_day_of_period.
-    assert current == ["2025-01-01"]
-    assert baseline == ["2025-01-01"]
+    # FakeCalendar devuelve siempre 2025-01-02 para first_business_day_of_period.
+    assert current == ["2025-01-02"]
+    assert baseline == ["2025-01-02"]
 
 
 def test_metric_runner_resolve_dates_first_monthly(spark: SparkSession):
     """_resolve_dates for first/last modes uses the previous period."""
     runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
     current, baseline = runner._resolve_dates("2025-01-15", "first", "monthly")
-    # FakeCalendar devuelve siempre 2025-01-01 para first_day_of_period.
-    assert current == ["2025-01-01"]
-    assert baseline == ["2025-01-01"]
+    # FakeCalendar devuelve siempre 2025-01-02 para first_business_day_of_period.
+    assert current == ["2025-01-02"]
+    assert baseline == ["2025-01-02"]
+
+
+def _partition_spec(table: str) -> DataSourceSpec:
+    """Spec mínimo sobre una tabla particionada por information_date."""
+    cfg = ModelTableConfig(
+        table_role="raw", table_name=table, source_type="HIVE", source_schema="",
+        source_table=table, entity_key_columns=["customer_id"],
+        canonical_key_columns=["customer_id"], date_column="information_date",
+        date_format="", history_months=1, lag=0, sql_transform="", data_type="",
+        partition_columns=["information_date"], reading_mode="each",
+    )
+    return DataSourceSpec.from_model_table(cfg, "age", "information_date")
+
+
+def test_metric_runner_partition_modes(spark: SparkSession):
+    """first_partition/last_partition eligen particiones existentes del periodo."""
+    runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
+    spark.createDataFrame(
+        [(1, "2025-01-05", 10.0), (2, "2025-01-12", 20.0), (3, "2025-01-20", 30.0)],
+        ["customer_id", "information_date", "age"],
+    ).createOrReplaceTempView("part_tbl")
+    spec = _partition_spec("part_tbl")
+
+    # FakeCalendar delimita el mes a 2025-01-01..2025-01-31.
+    assert runner._period_dates("2025-01-15", "first_partition", "monthly", spec=spec) == ["2025-01-05"]
+    assert runner._period_dates("2025-01-15", "last_partition", "monthly", spec=spec) == ["2025-01-20"]
+    # Sin particiones en el periodo -> lista vacía (MissingDataError aguas arriba).
+    assert runner._period_dates("2025-03-15", "first_partition", "monthly", spec=spec) == []
+
+
+def test_metric_runner_partition_modes_business_filter(spark: SparkSession):
+    """Con use_business_days, los modos partición descartan fechas no hábiles."""
+    runner = MetricRunner(spark, DataReader(spark), calendar=FakeCalendar())
+    spark.createDataFrame(
+        [(1, "2025-01-05", 10.0), (2, "2025-01-12", 20.0)],
+        ["customer_id", "information_date", "age"],
+    ).createOrReplaceTempView("part_tbl_b")
+    spec = _partition_spec("part_tbl_b")
+
+    # FakeCalendar.business_days_of_period = all_days -> ambas fechas quedan.
+    assert runner._period_dates("2025-01-15", "first_partition", "monthly", spec=spec) == ["2025-01-05"]
+    # Con un calendario que restringe los hábiles, solo cuentan esas particiones.
+    strict = FakeCalendar()
+    strict.business_days_of_period = lambda d, p: ["2025-01-12"]
+    runner2 = MetricRunner(spark, DataReader(spark), calendar=strict)
+    assert runner2._period_dates("2025-01-15", "first_partition", "monthly", spec=spec) == ["2025-01-12"]
+    assert runner2._period_dates("2025-01-15", "last_partition", "monthly", spec=spec) == ["2025-01-12"]
 
 
 def test_metric_runner_period_dates_calendar_days(spark: SparkSession):
@@ -285,7 +336,7 @@ def test_metric_runner_resolve_dates_calendar_days(spark: SparkSession):
 def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_data: dict, checkpoint):
     """run() loads config tables and returns a list of MetricResult objects."""
     _create_mock_tables(spark, sample_data)
-    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
+    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], calendar=FakeCalendar(), checkpoint=checkpoint)
 
     results = runner.run(
         model_id="M1",
@@ -305,7 +356,7 @@ def test_metric_runner_run_returns_metric_results(spark: SparkSession, sample_da
 def test_metric_runner_missing_data_raises(spark: SparkSession, sample_data: dict, checkpoint):
     """run() raises MissingDataError when no rows match the reading date."""
     _create_mock_tables(spark, sample_data)
-    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
+    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], calendar=FakeCalendar(), checkpoint=checkpoint)
 
     with pytest.raises(MissingDataError):  # noqa: F821
         runner.run(
@@ -319,7 +370,7 @@ def test_metric_runner_missing_data_raises(spark: SparkSession, sample_data: dic
 def test_metric_runner_reuses_checkpoint(spark: SparkSession, sample_data: dict, checkpoint):
     """A second run with the same model/date reads cached parquet instead of recomputing."""
     _create_mock_tables(spark, sample_data)
-    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
+    runner = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], calendar=FakeCalendar(), checkpoint=checkpoint)
 
     results1 = runner.run(
         model_id="M1",
@@ -330,7 +381,7 @@ def test_metric_runner_reuses_checkpoint(spark: SparkSession, sample_data: dict,
     assert isinstance(results1, list)
     assert len(results1) > 0
 
-    runner2 = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], checkpoint=checkpoint)
+    runner2 = MetricRunner(spark, DataReader(spark), join_keys=["customer_id"], calendar=FakeCalendar(), checkpoint=checkpoint)
     results2 = runner2.run(
         model_id="M1",
         information_date="2025-01-01",

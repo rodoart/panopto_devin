@@ -1,12 +1,102 @@
+# ── Python ──
 __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.ipynb_checkpoints/
+
+# ── Entornos ──
 .env
+.env.*
+!.env.example
+!.env.local.example
 .venv/
 .venv-local/
 venv/
 conda-env/
+
+# ── Data / artefactos ──
 *.parquet
-.ipynb_checkpoints/
+*.csv.gz
+
+# ── Stack local (postgres portable, warehouse, metastore derby, spark tmp) ──
+.local/
+.local/*
+hadoop/
+spark-warehouse/
+metastore_db/
+derby.log
+spark_tmp/
+checkpoints/
+staging/
+pg.log
+pgdata/
+
+# ── Windows: archivos basura ──
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+*.tmp
+*.temp
+*.exe
+*.dll
+~$*
+*.bak
+*.old
+*.orig
+*.stackdump
+[Dd]esktop.ini
+
+# Nombres reservados de Windows que a veces se crean por redirecciones
+NUL
+NUL.*
+CON
+CON.*
+PRN
+AUX
+COM[1-9]
+COM[1-9].*
+LPT[1-9]
+LPT[1-9].*
+
+# ── macOS (por si acaso) ──
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Linux ──
+*~
+.fuse_hidden*
+.Trash-*
+
+# ── IDEs ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+.history/
+
+# ── Logs ──
+*.log
+logs/

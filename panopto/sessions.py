@@ -3,7 +3,6 @@
 from typing import Any, Dict
 
 import psycopg2
-from pyspark.sql import SparkSession
 
 from panopto.config import Settings
 from panopto.config.tables import PROCESS_CONFIG
@@ -20,8 +19,9 @@ class SparkSessionBuilder:
         self.app_name = app_name
         self.extra_conf = extra_conf or {}
 
-    def build(self) -> SparkSession:
+    def build(self) -> Any:
         """Método que construye."""
+        from pyspark.sql import SparkSession
         refresh_ticket()
         settings = Settings.from_env()
         builder = SparkSession.builder.appName(self.app_name)

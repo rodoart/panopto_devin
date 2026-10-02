@@ -24,6 +24,12 @@
   "banamex_calendar_sync_table": "banamex_calendar_sync_d",
   "model_contact_table": "model_contact",
   "red_alert_list_table": "red_alert_list_d",
+  "pg_metric_result_table": "panopto_metric_result",
+  "pg_variable_summary_table": "panopto_variable_summary",
+  "pg_scoring_summary_table": "panopto_scoring_summary",
+  "pg_data_availability_table": "panopto_data_availability",
+  "pg_dashboard_semaphore_table": "panopto_dashboard_semaphore",
+  "pg_dashboard_model_summary_table": "panopto_dashboard_model_summary",
   "hdfs_staging_base": "/tmp/panopto/staging",
   "hive_warehouse_dir": "/user/hive/warehouse"
 }

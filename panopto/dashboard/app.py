@@ -96,10 +96,62 @@ start_iso, end_iso = start.isoformat(), end.isoformat()
 
 st.title(f"📊 PANOPTO — Model Scoring Monitoring — {selected_model}")
 
+# Métricas canónicas: las que alimentan los controles oficiales del tablero
+# (Data Availability, Pre Scoring, PSI/PSI Variation, CSI, Population Scored,
+# Target). Todo lo demás va al "Semáforo Completo".
+CANONICAL_METRICS = [
+    "median_shift",
+    "population_variation",
+    "completeness",
+    "psi_canonical",
+    "psi_dynamic",
+    "event_rate",
+    "psi_target",
+    "approval_rate",
+]
+
+
+def _semaphore_pivot(df: pd.DataFrame) -> pd.DataFrame:
+    """Pivotea variable x metric_name -> status en la última information_date."""
+    latest_date = df["information_date"].max()
+    latest = df[df["information_date"] == latest_date]
+    return latest.pivot_table(
+        index=["var_type", "variable"],
+        columns="metric_name",
+        values="status",
+        aggfunc="first",
+    )
+
+
+def _status_trend(df: pd.DataFrame, title: str) -> None:
+    """Barra apilada de conteo de estatus por information_date."""
+    counts = (
+        df.assign(severity=df["status"].map(_severity_from_metric_status))
+        .groupby(["information_date", "severity"])
+        .size()
+        .reset_index(name="count")
+    )
+    fig = px.bar(
+        counts,
+        x="information_date",
+        y="count",
+        color="severity",
+        color_discrete_map={"PASS": "#2ecc71", "WARNING": "#e67e22", "FAIL": "#e74c3c"},
+        barmode="stack",
+        title=title,
+        template="plotly_white",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
 (
     tab_summary,
+    tab_canonical_sem,
+    tab_full_sem,
     tab_pre_scoring,
     tab_data_availability,
+    tab_input_vars,
+    tab_target_perf,
     tab_median_raw,
     tab_raw_distribution,
     tab_raw_sources,
@@ -110,8 +162,12 @@ st.title(f"📊 PANOPTO — Model Scoring Monitoring — {selected_model}")
 ) = st.tabs(
     [
         "Summary Management",
+        "Semáforo Canónico",
+        "Semáforo Completo",
         "Pre Scoring Summary",
         "Data Availability",
+        "Input Variables",
+        "Target & Performance",
         "Median Raw Variables",
         "Raw Variable Distribution",
         "Raw Sources",
@@ -207,6 +263,83 @@ with tab_summary:
     )
 
 # ---------------------------------------------------------------------------
+# Semáforo Canónico — status de las métricas que alimentan los controles
+# ---------------------------------------------------------------------------
+with tab_canonical_sem:
+    st.subheader("Semáforo Canónico")
+    st.caption(
+        "Solo las métricas canónicas (las que alimentan los controles oficiales): "
+        + ", ".join(CANONICAL_METRICS)
+    )
+    canonical_df = data.get_metric_results(
+        selected_model, start_iso, end_iso, metric_names=CANONICAL_METRICS
+    )
+    if canonical_df.empty:
+        st.warning("No hay métricas canónicas para el modelo y rango seleccionados.")
+    else:
+        pivot = _semaphore_pivot(canonical_df)
+        st.markdown(f"**Última fecha:** {canonical_df['information_date'].max().date()}")
+        st.dataframe(
+            pivot.style.applymap(_status_style),
+            use_container_width=True,
+        )
+        _status_trend(canonical_df, "Evolución del semáforo canónico")
+
+        with st.expander("Detalle (todas las fechas)"):
+            cols = [
+                "information_date", "var_type", "variable", "metric_name",
+                "metric_value", "baseline_value", "threshold_ambar", "threshold_red", "status",
+            ]
+            cols = [c for c in cols if c in canonical_df.columns]
+            st.dataframe(
+                _style_status_columns(
+                    canonical_df[cols].sort_values(
+                        ["information_date", "var_type", "variable"], ascending=False
+                    ),
+                    ["status"],
+                ),
+                use_container_width=True,
+            )
+
+# ---------------------------------------------------------------------------
+# Semáforo Completo — todas las métricas no canónicas
+# ---------------------------------------------------------------------------
+with tab_full_sem:
+    st.subheader("Semáforo Completo")
+    st.caption("Todas las métricas calculadas que no forman parte de los controles canónicos.")
+    all_df = data.get_metric_results(selected_model, start_iso, end_iso)
+    if all_df.empty:
+        st.warning("No hay métricas para el modelo y rango seleccionados.")
+    else:
+        extra_df = all_df[~all_df["metric_name"].isin(CANONICAL_METRICS)]
+        if extra_df.empty:
+            st.info("Todas las métricas calculadas son canónicas; no hay métricas adicionales.")
+        else:
+            pivot = _semaphore_pivot(extra_df)
+            st.markdown(f"**Última fecha:** {extra_df['information_date'].max().date()}")
+            st.dataframe(
+                pivot.style.applymap(_status_style),
+                use_container_width=True,
+            )
+            _status_trend(extra_df, "Evolución del semáforo completo (métricas no canónicas)")
+
+            sel_var = st.selectbox(
+                "Variable (detalle histórico)",
+                sorted(extra_df["variable"].unique()),
+                key="full_sem_var",
+            )
+            var_hist = extra_df[extra_df["variable"] == sel_var]
+            fig = px.line(
+                var_hist,
+                x="information_date",
+                y="metric_value",
+                color="metric_name",
+                title=f"Histórico de métricas no canónicas — {sel_var}",
+                template="plotly_white",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+# ---------------------------------------------------------------------------
 # Pre Scoring Summary — Population Growth / Median Shift / Completeness
 # ---------------------------------------------------------------------------
 with tab_pre_scoring:
@@ -291,6 +424,115 @@ with tab_data_availability:
             _style_status_columns(latest[display_cols], ["control"]),
             use_container_width=True,
         )
+
+# ---------------------------------------------------------------------------
+# Input Variables — todo lo calculado sobre var_type=input/transformed
+# ---------------------------------------------------------------------------
+with tab_input_vars:
+    st.subheader("Input Variables")
+    st.caption(
+        "Todas las métricas calculadas sobre las variables input/transformed: "
+        "null_rate, cardinality_ratio, outlier_rate, median_shift, ks_vs_dev, "
+        "psi_canonical, psi_dynamic, correlation_drift, population_variation, completeness."
+    )
+    input_df = data.get_metric_results(
+        selected_model, start_iso, end_iso, var_types=["input", "transformed"]
+    )
+    if input_df.empty:
+        st.warning("No hay métricas de variables input/transformed todavía.")
+    else:
+        st.markdown("**Semáforo (última fecha)**")
+        st.dataframe(
+            _semaphore_pivot(input_df).style.applymap(_status_style),
+            use_container_width=True,
+        )
+
+        metric_sel = st.selectbox(
+            "Métrica",
+            sorted(input_df["metric_name"].unique()),
+            key="input_metric",
+        )
+        metric_df = input_df[input_df["metric_name"] == metric_sel]
+        fig = px.line(
+            metric_df,
+            x="information_date",
+            y="metric_value",
+            color="variable",
+            title=f"{metric_sel} por variable input/transformed",
+            template="plotly_white",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        stats_df = data.get_variable_summary(
+            selected_model, start_iso, end_iso, var_types=["input", "transformed"]
+        )
+        if not stats_df.empty:
+            st.markdown("**Estadísticos por variable (última fecha)**")
+            latest_s = stats_df[stats_df["information_date"] == stats_df["information_date"].max()]
+            st.dataframe(
+                latest_s.pivot_table(
+                    index=["var_type", "variable"], columns="statistic",
+                    values="statistic_value", aggfunc="first",
+                ),
+                use_container_width=True,
+            )
+
+# ---------------------------------------------------------------------------
+# Target & Performance — event_rate/psi_target + métricas conjugadas
+# ---------------------------------------------------------------------------
+with tab_target_perf:
+    st.subheader("Target & Performance")
+    st.caption(
+        "Métricas de la target (event_rate, psi_target, null_rate) y métricas conjugadas "
+        "score×target (auc, gini, brier_score, lift_top_decile, calibration_slope, ks_score_target)."
+    )
+    target_df = data.get_metric_results(
+        selected_model, start_iso, end_iso, var_types=["target"]
+    )
+    if target_df.empty:
+        st.warning("No hay métricas de la target todavía.")
+    else:
+        fig = px.line(
+            target_df,
+            x="information_date",
+            y="metric_value",
+            color="metric_name",
+            title="Evolución de métricas de la target",
+            template="plotly_white",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(
+            _semaphore_pivot(target_df).style.applymap(_status_style),
+            use_container_width=True,
+        )
+
+    conj_df = data.get_metric_results(
+        selected_model, start_iso, end_iso, var_types=["conjugate"]
+    )
+    st.markdown("**Performance score × target (conjugate)**")
+    if conj_df.empty:
+        st.warning("No hay métricas conjugadas (auc/gini/brier…) todavía.")
+    else:
+        conj_latest = conj_df[conj_df["information_date"] == conj_df["information_date"].max()]
+        st.dataframe(
+            _style_status_columns(
+                conj_latest[
+                    ["metric_name", "metric_value", "baseline_value",
+                     "threshold_ambar", "threshold_red", "status"]
+                ].sort_values("metric_name"),
+                ["status"],
+            ),
+            use_container_width=True,
+        )
+        fig = px.line(
+            conj_df,
+            x="information_date",
+            y="metric_value",
+            color="metric_name",
+            title="Métricas conjugadas en el tiempo",
+            template="plotly_white",
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 # ---------------------------------------------------------------------------
 # Median Raw Variables
@@ -487,6 +729,14 @@ with tab_about:
         - **Summary Management**: fila canónica `panopto_scoring_summary` (Model, Scoring Dt, Vintage,
           Control Data Availability, Control Pre Scoring, PSI, PSI Variation, CSI Max, CSI,
           Population Scored, General Status).
+        - **Semáforo Canónico**: grid variable × métrica con el status de las métricas que alimentan
+          los controles oficiales (PSI/CSI, Pre Scoring, target).
+        - **Semáforo Completo**: mismo grid con todas las demás métricas calculadas por el motor.
+        - **Input Variables**: todas las métricas y estadísticos de `var_type` input/transformed
+          (`correlation_drift`, `ks_vs_dev`, `outlier_rate`, `cardinality_ratio`, …).
+        - **Target & Performance**: `event_rate`, `psi_target`, `null_rate` de la target y las
+          métricas conjugadas score×target (`auc`, `gini`, `brier_score`, `lift_top_decile`,
+          `calibration_slope`, `ks_score_target`).
         - **Pre Scoring Summary**: `median_shift`, `population_variation` y `completeness` sobre
           variables raw/input.
         - **Data Availability**: `panopto_data_availability`, comparando la fecha máxima disponible

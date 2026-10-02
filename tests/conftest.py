@@ -30,6 +30,12 @@ os.environ.setdefault(
     "PANOPTO_EMAIL_CONFIG_PATH",
     os.path.join(os.path.dirname(__file__), "..", "config", "email_config.json"),
 )
+# Temp views no aceptan nombres calificados (db.table): los tests usan la
+# config local, donde las tablas panopto_* no llevan prefijo de esquema.
+os.environ.setdefault(
+    "PANOPTO_TABLES_JSON",
+    os.path.join(os.path.dirname(__file__), "..", "config", "tables.local.json"),
+)
 
 # Import panopto modules now that the environment is configured.  Importing
 # panopto.metrics registers all metric subclasses.

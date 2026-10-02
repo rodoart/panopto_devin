@@ -42,7 +42,9 @@ def test_auc(sample_data):
 
 
 def test_gini(sample_data):
-    """gini returns a performance metric derived from AUC."""
+    """gini returns the relative change vs baseline (RELATIVE_METRICS)."""
+    from panopto.metrics.common import binary_gini
+
     metric = GiniMetric()
     result = metric.calculate(
         sample_data["joined"],
@@ -51,11 +53,29 @@ def test_gini(sample_data):
         **_params(),
     )
     assert result.metric_name == "gini"
-    assert result.metric_value >= 0.0
+    expected_current = binary_gini(sample_data["joined"], "score", "target")
+    expected_baseline = binary_gini(sample_data["joined_baseline"], "score", "target")
+    assert result.metric_value == pytest.approx(
+        (expected_baseline - expected_current) / expected_baseline
+    )
+    assert result.baseline_value == pytest.approx(expected_baseline)
+
+
+def test_gini_without_baseline_returns_absolute(sample_data):
+    """Without baseline, gini returns the absolute value 2*AUC-1."""
+    from panopto.metrics.common import binary_gini
+
+    metric = GiniMetric()
+    result = metric.calculate(
+        sample_data["joined"], None, {"threshold_ambar": 0.05, "threshold_red": 0.10}, **_params()
+    )
+    assert result.metric_value == pytest.approx(binary_gini(sample_data["joined"], "score", "target"))
 
 
 def test_brier_score(sample_data):
-    """brier_score computes mean((score - target)^2)."""
+    """brier_score returns the relative change in mean((score - target)^2)."""
+    import pyspark.sql.functions as F
+
     metric = BrierScoreMetric()
     result = metric.calculate(
         sample_data["joined"],
@@ -64,7 +84,23 @@ def test_brier_score(sample_data):
         **_params(),
     )
     assert result.metric_name == "brier_score"
-    assert result.metric_value >= 0.0
+
+    def _brier(df):
+        return df.select(F.mean(F.pow(F.col("score") - F.col("target"), 2))).collect()[0][0]
+
+    current = _brier(sample_data["joined"])
+    baseline = _brier(sample_data["joined_baseline"])
+    assert result.metric_value == pytest.approx((current - baseline) / baseline)
+    assert result.baseline_value == pytest.approx(baseline)
+
+
+def test_brier_score_without_baseline_returns_absolute(sample_data):
+    """Without baseline, brier_score returns the absolute mean squared error."""
+    metric = BrierScoreMetric()
+    result = metric.calculate(
+        sample_data["joined"], None, {"threshold_ambar": 0.10, "threshold_red": 0.20}, **_params()
+    )
+    assert 0.0 <= result.metric_value <= 1.0
 
 
 def test_lift_top_decile(sample_data):

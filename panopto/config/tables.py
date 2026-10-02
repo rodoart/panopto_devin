@@ -39,6 +39,13 @@ class ProcessConfig:
     model_contact_table: str = "model_contact"
     red_alert_list_table: str = "red_alert_list_d"
 
+    pg_metric_result_table: str = "panopto_metric_result"
+    pg_variable_summary_table: str = "panopto_variable_summary"
+    pg_scoring_summary_table: str = "panopto_scoring_summary"
+    pg_data_availability_table: str = "panopto_data_availability"
+    pg_dashboard_semaphore_table: str = "panopto_dashboard_semaphore"
+    pg_dashboard_model_summary_table: str = "panopto_dashboard_model_summary"
+
     hdfs_staging_base: str = "/tmp/panopto/staging"
     hive_warehouse_dir: str = "/user/hive/warehouse"
 
@@ -49,11 +56,14 @@ class ProcessConfig:
 
         Args:
             path: ruta a ``tables.json``. Si es ``None`` se resuelve
+                ``PANOPTO_TABLES_JSON`` y, en su defecto,
                 ``config/tables.json`` relativo a la raíz del repo.
 
         Las variables de entorno ``PANOPTO_HDFS_STAGING_BASE`` y
         ``PANOPTO_HIVE_WAREHOUSE_DIR`` tienen prioridad sobre los valores del JSON.
         """
+        if path is None:
+            path = os.environ.get("PANOPTO_TABLES_JSON")
         if path is None:
             repo_root = Path(__file__).resolve().parents[2]
             path = repo_root / "config" / "tables.json"

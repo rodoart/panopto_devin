@@ -26,7 +26,7 @@ def test_postgres_session_uses_expected_credentials(postgres_connection):
     kwargs = postgres_connection.last_connect_kwargs
     assert kwargs is not None
     assert kwargs["host"] == "localhost"
-    assert kwargs["port"] == "5432"
+    assert kwargs["port"] == 5432
     assert kwargs["dbname"] == "panopto_test"
     assert kwargs["user"] == "panopto_test"
     assert kwargs["password"] == "panopto_test"

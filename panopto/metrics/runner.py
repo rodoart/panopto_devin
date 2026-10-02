@@ -185,7 +185,12 @@ class MetricRunner:
                 frequency,
                 lag=table_config.lag if table_config.lag is not None else 0,
                 use_business_days=table_config.use_business_days,
+                spec=spec,
             )
+            if not current_dates:
+                raise MissingDataError(
+                    f"no partition found for {var} in period of {information_date} ({reading_mode})"
+                )
             current, baseline = self._read_data(spec, var, current_dates, baseline_dates)
             if current.count() == 0:
                 raise MissingDataError(f"no data for {var} on {current_dates[0]}")
@@ -267,6 +272,7 @@ class MetricRunner:
                 frequency,
                 lag=target_table_lag,
                 use_business_days=score_table_config.use_business_days,
+                spec=score_spec,
             )
             score_df_for_target, score_baseline_for_target = self._read_data(
                 score_spec, score_col_name, target_score_current, target_score_baseline
@@ -312,7 +318,7 @@ class MetricRunner:
             anchor_current = []
             anchor_baseline = []
             for _, _, _, cur_dates, base_dates, _, cfg in input_numeric:
-                if str(cfg.reading_mode) in ("first", "last"):
+                if str(cfg.reading_mode) in ("first", "last", "first_partition", "last_partition"):
                     anchor_current = cur_dates
                     anchor_baseline = base_dates
                     break
@@ -575,6 +581,7 @@ class MetricRunner:
         reading_mode: str,
         frequency: str,
         use_business_days: bool = True,
+        spec: Optional[Any] = None,
     ) -> List[str]:
         """Helper interno que realiza la operación "period_dates"."""
         period = "month" if frequency == "monthly" else "week" if frequency == "weekly" else "day"
@@ -590,6 +597,21 @@ class MetricRunner:
             if use_business_days:
                 return self.calendar.business_days_of_period(reference_date, period)
             return self.calendar.all_days_of_period(reference_date, period)
+        if reading_mode in ("first_partition", "last_partition"):
+            if spec is None:
+                return [reference_date]
+            start = self.calendar.first_day_of_period(reference_date, period)
+            end = self.calendar.last_day_of_period(reference_date, period)
+            if use_business_days:
+                business = set(self.calendar.business_days_of_period(reference_date, period))
+            else:
+                business = None
+            existing = self.data_reader.dates_in_period(spec, start, end)
+            if business is not None:
+                existing = [d for d in existing if d in business]
+            if not existing:
+                return []
+            return [existing[0] if reading_mode == "first_partition" else existing[-1]]
         return [reference_date]
 
     def _period_reference(self, reference_date: str, frequency: str, periods: int = 1) -> str:
@@ -613,12 +635,13 @@ class MetricRunner:
         frequency: str,
         lag: int = 0,
         use_business_days: bool = True,
+        spec: Optional[Any] = None,
     ) -> Tuple[Any, ...]:
         """Helper interno que resuelve dates."""
         current_ref = self._period_reference(information_date, frequency, periods=lag)
         baseline_ref = self._period_reference(current_ref, frequency, periods=1)
-        current_dates = self._period_dates(current_ref, reading_mode, frequency, use_business_days)
-        baseline_dates = self._period_dates(baseline_ref, reading_mode, frequency, use_business_days)
+        current_dates = self._period_dates(current_ref, reading_mode, frequency, use_business_days, spec)
+        baseline_dates = self._period_dates(baseline_ref, reading_mode, frequency, use_business_days, spec)
         return current_dates, baseline_dates
 
     def _metrics_for_variable(self, var_type: str, data_type: str) -> List[str]:

@@ -15,13 +15,15 @@ cp .env.example .env
 
 | Tablas | Motor |
 |--------|-------|
-| Configuración (`gcprmsbx_work.panopto_model_summary_csi_psi`, `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_csi_psi_table`, `gcprmsbx_work.panopto_tresholds_table`, `gcprmsbx_work.panopto_alert_policy`, `gcprmsbx_work.panopto_category_policy`, `gcprmsbx_work.panopto_variable_metadata`) | Hive / Parquet |
-| Calendario (`gcprmsbx_work.panopto_banamex_calendar`) | Hive / Parquet |
+| Configuración (`gcprmsbx_work.panopto_model_summary_csi_psi`, `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_csi_psi_table`, `gcprmsbx_work.panopto_tresholds_table`, `gcprmsbx_work.panopto_alert_policy`, `gcprmsbx_work.panopto_category_policy`, `gcprmsbx_work.panopto_variable_metadata`, `gcprmsbx_work.panopto_email_config`) | Hive / Parquet |
+| Calendario (`gcprmsbx_work.panopto_banamex_calendar`, `gcprmsbx_work.panopto_banamex_calendar_ext_d` externa) | Hive / Parquet |
 | Estado y resultados (`gcprmsbx_work.panopto_config_changelog`, `gcprmsbx_work.panopto_category_baseline_rank`, `gcprmsbx_work.panopto_metric_threshold_auto`, `gcprmsbx_work.panopto_metric_result`, `gcprmsbx_work.panopto_alert_aggregate`, `gcprmsbx_work.panopto_execution_log`, `gcprmsbx_work.panopto_email_log`, `gcprmsbx_work.panopto_staging_control`, `gcprmsbx_work.panopto_variable_summary`) | Hive / Parquet |
 | Tablero PANOPTO (`gcprmsbx_work.panopto_scoring_summary`, `gcprmsbx_work.panopto_data_availability`) | Hive / Parquet |
+| Vistas del tablero (`gcprmsbx_work.panopto_dashboard_semaphore`, `gcprmsbx_work.panopto_dashboard_model_summary`; las crea `panopto/dashboard/builder.py` desde el DAG `panopto_output_validator`) | Hive |
 | Calendario (`banamex_calendar_sync_d`) | PostgreSQL |
 | Contactos (`model_contact`) | PostgreSQL |
 | Lista roja global (`red_alert_list_d`) | PostgreSQL |
+| Copias del tablero (`panopto_metric_result`, `panopto_variable_summary`, `panopto_scoring_summary`, `panopto_data_availability`, `panopto_dashboard_semaphore`, `panopto_dashboard_model_summary`; las alimenta `panopto_dashboard_sync`) | PostgreSQL |
 
 Los nombres y rutas anteriores se centralizan en `config/tables.json` y se exponen a través de `panopto.config.tables.ProcessConfig`. Para usarlos:
 
@@ -52,15 +54,22 @@ Esto evita definir `StructType` o columnas hardcodeadas en el código de negocio
 
 Toda la configuración de las tablas `score`, `target`, `raw`, `input` y `processed` vive en Hive, en `gcprmsbx_work.panopto_model_table_config`. Ahí se define por modelo:
 
-- `table_role`: rol de la tabla (`score`, `target`, `raw`, `input`, `processed`).
-- `source_table`: referencia URI (`hive:schema.tabla` o `parquet:/ruta`).
+- `table_role`: rol de la tabla (`score`, `target`, `raw`, `input`, `processed`; el rol `processed` alimenta variables con `var_type = transformed`).
+- `table_name`: alias corto de la tabla.
+- `source_type`: `HIVE` o `PARQUET`.
+- `source_schema`: esquema Hive (o vacío para parquet).
+- `source_table`: nombre físico de la fuente. Para `HIVE` es `schema.tabla` (sin prefijo); para `PARQUET` es la ruta del archivo/directorio.
 - `entity_key_columns`: llaves tal como se llaman en la tabla fuente (ej. `["num_cliente"]`).
 - `canonical_key_columns`: llaves canónicas del modelo para unir tablas (ej. `["customer_id"]`).
 - `date_column` y `date_format`: columna de fecha y formato (`%Y-%m`, `%y%m`, `%Y%m`, `%y-%m`, etc.).
 - `history_months`: ventana de historia que se considera para la tabla.
 - `lag`: desfase en meses respecto a la fecha actual.
 - `sql_transform`: expresiones del `SELECT` (sin la cláusula `FROM`) para limpiar/renombrar columnas antes de leer.
+- `data_type`: `numeric` o `categorical` cuando aplica a toda la tabla (opcional).
 - `partition_columns`: columnas de partición adicionales (como JSON).
+- `reading_mode`: qué filas del periodo leer (`each`, `first`, `last`, `first_partition` o `last_partition`; ver la sección MetricRunner).
+- `use_business_days`: si es `true`, la resolución de fechas del periodo usa días hábiles del calendario Banamex; si es `false`, días calendario.
+- `active`: `true` si la configuración está activa.
 - `deadline_days`: días tras el fin del periodo (vintage) por los que se tolera la ausencia de datos de esa fuente antes de marcarla como incumplida en el control "Data Availability Monitoring" del dashboard.
 
 `DataReader` aplica el `sql_transform`, formatea las fechas al formato de la tabla, renombra las llaves locales a las llaves canónicas y lee solo las columnas necesarias. `MetricRunner` y `TrainingMode` cargan esta configuración automáticamente desde la última partición del modelo, por lo que un `score` con llave `customer_id` puede unirse a un `target` con llave `num_cliente` si ambas comparten las mismas `canonical_key_columns`.
@@ -68,11 +77,11 @@ Toda la configuración de las tablas `score`, `target`, `raw`, `input` y `proces
 Ejemplo de fila para un `target` con llave distinta:
 
 ```csv
-process_date,model_id,table_role,table_name,source_type,source_schema,source_table,entity_key_columns,canonical_key_columns,date_column,date_format,history_months,lag,sql_transform,data_type,partition_columns,active
-2025-10-15,1079_cta_lvl,target,target_1079,HIVE,gcprmsbx_work,hive:gcprmsbx_work.target_1079,"[""num_cliente""]","[""customer_id""]",information_date,,6,1,"TRIM(num_cliente) AS num_cliente",,[],true
+process_date,model_id,table_role,table_name,source_type,source_schema,source_table,entity_key_columns,canonical_key_columns,date_column,date_format,history_months,lag,sql_transform,data_type,partition_columns,reading_mode,use_business_days,active,deadline_days
+2025-10-15,1079_cta_lvl,target,target_1079,HIVE,gcprmsbx_work,gcprmsbx_work.target_1079,"[""num_cliente""]","[""customer_id""]",information_date,,6,1,"TRIM(num_cliente) AS num_cliente",,[],each,true,true,10
 ```
 
-El CSV de ejemplo completo está en `samples/config/gcprmsbx_work.panopto_model_table_config.csv`.
+El CSV de ejemplo completo está en `samples/config/model_table_config.csv`.
 
 ## Muestras
 
@@ -88,8 +97,11 @@ Los archivos en `samples/config/` y `samples/sources/` contienen datos de ejempl
 - `panopto.data.sources` y `panopto.data.reader`: lectura de fuentes `hive:` y `parquet:` a partir de `variable_metadata`.
 - `panopto.binning`: bines canónicos, categóricos y cálculo de WoE.
 - `panopto.training`: `TrainingMode` para generar `csi_psi_table`, `metric_threshold_auto` y `category_baseline_rank`. `process_date` se usa como partición de salida; `information_date` se deriva de `process_date` usando `frequency`, `execution_monthly_day` y `execution_weekday`, pero puede sobreescribirse manualmente para entrenar como si fuera un día anterior.
-- `panopto.metrics`: motor de métricas con `MetricRegistry` y métricas de calidad, estabilidad, score y conjugadas.
+- `panopto.metrics`: motor de métricas con `MetricRegistry` y métricas de calidad, estabilidad, score, target y conjugadas (`panopto.metrics.runner.MetricRunner`).
 - `panopto.alerts`: agregador de alertas (`AlertAggregator`), constructor HTML de emails (`EmailBuilder`) y despachador (`EmailDispatcher`).
+- `panopto.dashboard`: tablero Streamlit (`app.py`), acceso a datos (`data.py`) y vistas auxiliares (`builder.py`).
+- `panopto.io`: escritura atómica de parquet en HDFS (`atomic_parquet_writer.AtomicParquetWriter`) con control en `panopto_staging_control`.
+- `panopto.kerberos`: helper de `kinit` usado por `SparkSessionBuilder` y el DAG `panopto_kinit`.
 
 ## Entrenamiento con fecha de información distinta a `process_date`
 
@@ -129,10 +141,12 @@ Si `information_date` no está en `conf`, se usa el comportamiento por defecto (
 
 ## Estructura de `source_table`
 
-El campo `source_table` de `gcprmsbx_work.panopto_variable_metadata` usa un prefijo URI:
+El campo `source_table` de `gcprmsbx_work.panopto_variable_metadata` **no es una URI**: es la clave de join hacia `gcprmsbx_work.panopto_model_table_config.source_table`. Ambas tablas deben usar el mismo literal para que `MetricRunner`/`TrainingMode` encuentren la configuración de la fuente:
 
-- `hive:schema.tabla` para tablas Hive.
-- `parquet:/ruta/externa` o `parquet:/ruta/information_date=2025-10-15` para archivos parquet.
+- `source_type = HIVE` → `schema.tabla` (ej. `gcprmsbx_work.raw_1079`).
+- `source_type = PARQUET` → ruta del archivo/directorio (ej. `/data/parquets/score_1079` o `/data/parquets/score_1079/information_date=2025-10-15`).
+
+El prefijo URI `hive:`/`parquet:` solo se reconoce en `DataSourceSpec.from_metadata` cuando se invoca **sin** `table_config` (ruta de respaldo); en el flujo normal `MetricRunner` exige la fila de `model_table_config` y lanza `MissingDataError` si la `source_table` de la variable no coincide con ninguna configuración.
 
 ## Credenciales
 
@@ -209,10 +223,12 @@ checkpoint = Checkpoint(spark, base_path="/tmp/panopto/checkpoints")
 runner = MetricRunner(spark, reader, checkpoint=checkpoint)
 ```
 
-El campo `reading_mode` de `gcprmsbx_work.panopto_variable_metadata` controla qué filas del periodo leer:
+El campo `reading_mode` de `gcprmsbx_work.panopto_model_table_config` controla qué filas del periodo leer:
 - `first`: primer día del periodo (primer día hábil si `use_business_days=true`, primer día calendario si no).
 - `last`: último día del periodo (último día hábil si `use_business_days=true`, último día calendario si no).
 - `each`: todos los días del periodo. Para frecuencia `daily` es un solo día; para `weekly`/`monthly` son todos los días hábiles o calendario según `use_business_days`.
+- `first_partition`: primera partición **existente** en la fuente dentro del periodo (filtrada a días hábiles si `use_business_days=true`). Útil cuando la fecha de partición no es fija.
+- `last_partition`: última partición **existente** en la fuente dentro del periodo, con el mismo filtro de días hábiles.
 
 El periodo se deriva de `model_summary.frequency` (`weekly`/`monthly`). `MetricRunner` desplaza el `current` por el `lag` de `model_table_config` y calcula la línea base un periodo antes del `current`.
 
@@ -262,9 +278,12 @@ Los DAGs están en `dags/`:
 | `panopto_config_watcher` | Cada 30 min | Sincroniza calendario Hive → Postgres, detecta nuevos modelos y ejecuta `TrainingMode` para calcular bins y umbrales. |
 | `panopto_production_runner` | Diaria | Ejecuta `MetricRunner` usando `BanamexCalendar`, persiste resultados/alertas/logs y dispara `panopto_alert_dispatcher`. |
 | `panopto_alert_dispatcher` | Diaria | Genera agregados, arma emails HTML y despacha notificaciones; soporta alertas `MISSING_DATA`. |
-| `panopto_output_validator` | Diaria | Valida que existan datos del día en `panopto_metric_result` y `panopto_alert_aggregate`; placeholder para refresco de Tableau. |
-| `panopto_orphan_cleanup` | Semanal | Elimina directorios HDFS de `/tmp/panopto_staging` con más de 7 días. |
-| `panopto_calendar_loader` | 1 de enero, 00:00 | Espera a `banamex_calendar_ext_d` hasta 7 días, convierte a `gcprmsbx_work.panopto_banamex_calendar` y sincroniza a `banamex_calendar_sync_d`. Si se agota el tiempo, pausa los DAGs `panopto_*` sin enviar correos. |
+| `panopto_output_validator` | Diaria | Valida que existan datos del día en `panopto_metric_result` y `panopto_alert_aggregate`, reconstruye las vistas del dashboard (`panopto_dashboard_semaphore`, `panopto_dashboard_model_summary`) y registra la corrida en `panopto_execution_log` (`model_id = __VALIDATOR__`). La tarea `trigger_tableau_refresh` permanece como placeholder sin operación. |
+| `panopto_orphan_cleanup` | Semanal | Elimina directorios HDFS bajo `PANOPTO_HDFS_STAGING_BASE` (default `/tmp/panopto/staging`) con más de 7 días, ignorando las rutas de checkpoint. |
+| `panopto_calendar_loader` | 1 de enero, 00:00 | Espera a `gcprmsbx_work.panopto_banamex_calendar_ext_d` hasta 7 días, convierte a `gcprmsbx_work.panopto_banamex_calendar` y sincroniza a `banamex_calendar_sync_d`. Si se agota el tiempo, pausa los DAGs `panopto_*` sin enviar correos. |
+| `panopto_kinit` | Cada 7 horas | Renueva el ticket Kerberos con `kinit -kt $PANOPTO_KINIT_KEYTAB $PANOPTO_KINIT_PRINCIPAL` como red de seguridad entre ejecuciones. |
+| `panopto_conda_pack` | Cada 3 días | Verifica que el `conda pack` del ambiente virtual exista en HDFS (`PANOPTO_HDFS_VIEW_TAR_GZ`); si falta, ejecuta `conda-pack` y lo sube con `hdfs dfs -put` (misma lógica que el script de terminal). |
+| `panopto_dashboard_sync` | Solo por trigger | Sincroniza a PostgreSQL las copias de las tablas del dashboard (`panopto/dashboard/pg_sync.py`). Lo disparan `panopto_production_runner` y `panopto_output_validator` al terminar de escribir en Hive; acepta `conf` `{"information_date": ..., "model_id": ...}` para acotar el diff, o hace un diff completo de particiones si se ejecuta sin conf. |
 
 Todos los DAGs tienen `email_on_failure=False` y `email_on_retry=False` para evitar enviar correos por fallas transitorias del clúster, y `retries` elevado para reintentar automáticamente hasta alcanzar el éxito. Las excepciones genéricas en `panopto_production_runner`, `panopto_alert_dispatcher` y `panopto_config_watcher` se propagan para que Airflow reactive la tarea, mientras que `MissingDataError` se registra y continúa con el siguiente modelo.
 
@@ -331,14 +350,14 @@ Esto inserta las filas en `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_
 
 | Motor | Tablas |
 |-------|--------|
-| **Hive / Parquet** | `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_model_summary_csi_psi`, `gcprmsbx_work.panopto_variable_metadata`, `gcprmsbx_work.panopto_tresholds_table`, `gcprmsbx_work.panopto_category_policy`, `gcprmsbx_work.panopto_alert_policy`, `gcprmsbx_work.panopto_csi_psi_table`, `gcprmsbx_work.panopto_category_baseline_rank`, `gcprmsbx_work.panopto_metric_threshold_auto`, `gcprmsbx_work.panopto_metric_result`, `gcprmsbx_work.panopto_alert_aggregate`, `gcprmsbx_work.panopto_execution_log`, `gcprmsbx_work.panopto_email_log`, `gcprmsbx_work.panopto_variable_summary`, `gcprmsbx_work.panopto_staging_control`, `gcprmsbx_work.panopto_banamex_calendar`, `gcprmsbx_work.panopto_config_changelog` |
-| **PostgreSQL** | `banamex_calendar_sync_d`, `model_contact`, `red_alert_list_d` |
+| **Hive / Parquet** | `gcprmsbx_work.panopto_model_table_config`, `gcprmsbx_work.panopto_model_summary_csi_psi`, `gcprmsbx_work.panopto_variable_metadata`, `gcprmsbx_work.panopto_email_config`, `gcprmsbx_work.panopto_tresholds_table`, `gcprmsbx_work.panopto_category_policy`, `gcprmsbx_work.panopto_alert_policy`, `gcprmsbx_work.panopto_csi_psi_table`, `gcprmsbx_work.panopto_category_baseline_rank`, `gcprmsbx_work.panopto_metric_threshold_auto`, `gcprmsbx_work.panopto_metric_result`, `gcprmsbx_work.panopto_alert_aggregate`, `gcprmsbx_work.panopto_execution_log`, `gcprmsbx_work.panopto_email_log`, `gcprmsbx_work.panopto_variable_summary`, `gcprmsbx_work.panopto_staging_control`, `gcprmsbx_work.panopto_scoring_summary`, `gcprmsbx_work.panopto_data_availability`, `gcprmsbx_work.panopto_banamex_calendar`, `gcprmsbx_work.panopto_banamex_calendar_ext_d`, `gcprmsbx_work.panopto_config_changelog` (más las vistas `panopto_dashboard_semaphore` y `panopto_dashboard_model_summary`) |
+| **PostgreSQL** | `banamex_calendar_sync_d`, `model_contact`, `red_alert_list_d`, `panopto_metric_result`, `panopto_variable_summary`, `panopto_scoring_summary`, `panopto_data_availability`, `panopto_dashboard_semaphore`, `panopto_dashboard_model_summary` (espejos del dashboard; los alimenta `panopto_dashboard_sync`) |
 
 ## Umbrales para score y target no binarias
 
 La tabla `gcprmsbx_work.panopto_metric_result` no depende de que `target` sea binario. Las métricas de calidad (`null_rate`, `outlier_rate`, `psi_canonical`, etc.) y las de score (`entropy`, `concentration_gini`, `tail_shift`, etc.) se calculan sobre la distribución propia de la variable.
 
-Cuando `target` es binaria, las métricas conjugadas (`auc`, `gini`, `brier_score`, `lift_top_decile`, `event_rate`, `ks_score_target`, `calibration_slope`) son directas:
+Cuando `target` es binaria, las métricas conjugadas (`auc`, `gini`, `brier_score`, `lift_top_decile`, `ks_score_target`, `calibration_slope`) y las de target (`event_rate`, `psi_target`) son directas:
 
 - `target = 1` es el evento, `target = 0` el no-evento.
 - `cut_off_probability` (de `gcprmsbx_work.panopto_model_summary_csi_psi`) separa aprobados/rechazados para `approval_rate`, `psi_approved` y `psi_rejected`.
@@ -357,13 +376,23 @@ streamlit run panopto/dashboard/app.py
 
 Se abre en `http://localhost:8501`.
 
+### Fuente de datos: PostgreSQL (no Spark)
+
+El dashboard **no lee nada directamente de PySpark/Hive**: `DashboardData` (`panopto/dashboard/data.py`) consulta exclusivamente las copias PostgreSQL de las tablas del tablero (`panopto_metric_result`, `panopto_variable_summary`, `panopto_scoring_summary`, `panopto_data_availability`, `panopto_dashboard_semaphore`, `panopto_dashboard_model_summary`).
+
+Esas copias las mantiene el DAG **`panopto_dashboard_sync`**, que no tiene schedule propio: se activa únicamente cuando los DAGs que alteran las tablas del tablero terminan de escribir (`panopto_production_runner` y `panopto_output_validator` lo disparan con `TriggerDagRunOperator`). La sincronización es incremental: compara particiones `(information_date, model_id)` entre Hive y Postgres por conteo de filas, reemplaza las nuevas/modificadas y elimina huérfanas. También se puede correr manual con conf acotada:
+
+```bash
+airflow dags trigger panopto_dashboard_sync --conf '{"information_date":"2026-08-07"}'
+```
+
 ### Pestañas
 
-| Pestaña | Contenido | Fuente |
+| Pestaña | Contenido | Fuente (copia PostgreSQL) |
 |---------|-----------|--------|
-| **Summary Management** | Fila canónica "Summary Scoring Monitoring": Model, Scoring Dt, Vintage, Control Data Availability, Control Pre Scoring, PSI, PSI Variation, CSI Max, CSI, Population Scored, General Status. | `gcprmsbx_work.panopto_scoring_summary` |
+| **Summary Management** | Fila canónica "Summary Scoring Monitoring": Model, Scoring Dt, Vintage, Control Data Availability, Control Pre Scoring, PSI, PSI Variation, CSI Max, CSI, Population Scored, General Status. | `panopto_scoring_summary` |
 | **Pre Scoring Summary** | Resultado (PASS/WARNING/FAIL) de los 3 chequeos oficiales: %Raw variables above median variation thresholds, Observation windows availability, %Raw sources with growth rt within Thresholds. | `panopto_metric_result` (`median_shift`, `population_variation`, `completeness` sobre `raw`/`input`) |
-| **Data Availability** | Control por fuente (Schema, Source, Scoring Date, Deadline Data Ingestion, Vintage, Update Data Required, Control). | `gcprmsbx_work.panopto_data_availability` |
+| **Data Availability** | Control por fuente (Schema, Source, Scoring Date, Deadline Data Ingestion, Vintage, Update Data Required, Control). | `panopto_data_availability` |
 | **Median Raw Variables** | Mediana histórica por variable raw/input. | `panopto_variable_summary` (`statistic='p50'`) |
 | **Raw Variable Distribution** | Percentiles de la última fecha por variable. | `panopto_variable_summary` |
 | **Raw Sources** | Population Growth / Completeness / Null Rate por fuente en el tiempo. | `panopto_metric_result` |
@@ -390,7 +419,24 @@ Los tres se registran igual que cualquier otra métrica (`MetricRegistry.registe
 
 ### Backfill histórico
 
-Para mostrar meses anteriores en el dashboard, se debe ejecutar backfill del DAG `panopto_production_runner` a las fechas deseadas. Cada corrida genera los resultados de `panopto_metric_result`, `panopto_alert_aggregate`, `panopto_execution_log`, `panopto_scoring_summary` y `panopto_data_availability` para ese `information_date`.
+Para mostrar meses anteriores en el dashboard existen dos opciones:
+
+**Script por modelo (recomendado al dar de alta un modelo nuevo).**
+`scripts/backfill_history.py` ejecuta la misma lógica del `panopto_production_runner` (`panopto.production.run_model_date`) pero solo para un `model_id`, sin disparar correos (`panopto_alert_dispatcher`); las corridas quedan con `reason='BACKFILL'` y `dag_id='manual_backfill'`. Requiere el modelo dado de alta (`scripts/onboard_model.py`) y entrenado (`panopto_config_watcher`).
+
+```bash
+# últimos N meses/semanas/días de historia
+python scripts/backfill_history.py --model-id 1079_cta_lvl --unit months --amount 6
+python scripts/backfill_history.py --model-id 1079_cta_lvl --unit weeks --amount 12 --end-date 2026-08-07
+
+# rango explícito
+python scripts/backfill_history.py --model-id 1079_cta_lvl --from 2026-01-01 --to 2026-08-07
+
+# reprocesar fechas que ya tienen corrida SUCCESS (por defecto se omiten)
+python scripts/backfill_history.py --model-id 1079_cta_lvl --unit days --amount 30 --force
+```
+
+**Backfill vía Airflow.** Corre el DAG para todos los modelos activos en el rango (y dispara el despachador de alertas en cada corrida):
 
 ```bash
 airflow dags backfill panopto_production_runner \
@@ -398,6 +444,8 @@ airflow dags backfill panopto_production_runner \
   --end-date 2026-08-07 \
   --reset-dagruns
 ```
+
+Ambas opciones generan los resultados de `panopto_metric_result`, `panopto_alert_aggregate`, `panopto_execution_log`, `panopto_scoring_summary`, `panopto_data_availability` y `panopto_variable_summary` para ese `information_date`.
 
 Por defecto, el dashboard ya inicia el selector de fechas en el rango completo del modelo seleccionado.
 
@@ -417,6 +465,7 @@ Ver documentación detallada en:
 
 ### Estructura
 
-- `panopto/dashboard/data.py`: conexión a Spark y lectura de `panopto_scoring_summary`, `panopto_data_availability`, `panopto_metric_result` y `panopto_variable_summary`.
+- `panopto/dashboard/data.py`: acceso a datos del tablero sobre las copias PostgreSQL (`DashboardData`, sin Spark).
+- `panopto/dashboard/pg_sync.py`: sincronización incremental Hive → PostgreSQL de las tablas del dashboard.
 - `panopto/dashboard/app.py`: aplicación Streamlit con `st.tabs()` y Plotly, una pestaña por control oficial.
 - `panopto/dashboard/builder.py`: vistas auxiliares (`panopto_dashboard_semaphore`, `panopto_dashboard_model_summary`) usadas por reportes de tendencia adicionales fuera del tablero oficial.

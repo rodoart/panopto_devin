@@ -110,6 +110,17 @@ class TrainingMode:
                     reading_dates.extend(self.calendar.business_days_of_period(ref, period))
                 else:
                     reading_dates.extend(self.calendar.all_days_of_period(ref, period))
+            elif reading_mode in ("first_partition", "last_partition"):
+                start = self.calendar.first_day_of_period(ref, period)
+                end = self.calendar.last_day_of_period(ref, period)
+                existing = self.reader.dates_in_period(spec, start, end)
+                if table_config.use_business_days:
+                    business = set(self.calendar.business_days_of_period(ref, period))
+                    existing = [d for d in existing if d in business]
+                if existing:
+                    reading_dates.append(
+                        existing[0] if reading_mode == "first_partition" else existing[-1]
+                    )
             else:
                 reading_dates.append(ref)
 
