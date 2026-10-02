@@ -2,8 +2,14 @@
 # Usado por scripts/setup_local_env.sh. No interviene con el ambiente
 # conda/cluster (environment.yml): es un venv aislado en .venv-local/.
 # pyspark se fija a la misma versión declarada en pyproject.toml.
+# NOTA: requiere Python 3.11 (pyspark 3.3 no soporta 3.12+).
+#   pandas<2: pyspark 3.3 llama a DataFrame.iteritems (removido en pandas 2).
+#   numpy<2:  pandas 1.5.x no es compatible con numpy 2.x.
 pyspark==3.3.2
 pytest>=7.0
 psycopg2-binary>=2.9
-pandas>=1.5,<2.1
+pandas>=1.5,<2
+numpy<2
 pyarrow>=10.0
+streamlit>=1.30
+plotly>=5.18

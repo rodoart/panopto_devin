@@ -15,10 +15,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/local_common.sh"
 panopto_ensure_venv
 panopto_setup_java
 
+VENV_PY="$(panopto_venv_python)"
+
 export PANOPTO_TEST_MODE="${PANOPTO_TEST_MODE:-local}"
-export PYSPARK_PYTHON="$PANOPTO_LOCAL_VENV/bin/python"
-export PYSPARK_DRIVER_PYTHON="$PANOPTO_LOCAL_VENV/bin/python"
+export PYSPARK_PYTHON="$VENV_PY"
+export PYSPARK_DRIVER_PYTHON="$VENV_PY"
 
 echo "panopto: modo local (PANOPTO_TEST_MODE=$PANOPTO_TEST_MODE), venv=$PANOPTO_LOCAL_VENV"
 cd "$PANOPTO_ROOT"
-exec "$PANOPTO_LOCAL_VENV/bin/python" -m pytest ${PANOPTO_LOCAL_PYTEST_ARGS:-tests/ -q} "$@"
+exec "$VENV_PY" -m pytest ${PANOPTO_LOCAL_PYTEST_ARGS:-tests/ -q} "$@"

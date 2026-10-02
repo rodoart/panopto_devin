@@ -11,8 +11,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/local_common.sh"
 panopto_ensure_venv
 panopto_setup_java
 
-export PYSPARK_PYTHON="$PANOPTO_LOCAL_VENV/bin/python"
-export PYSPARK_DRIVER_PYTHON="$PANOPTO_LOCAL_VENV/bin/python"
+VENV_PY="$(panopto_venv_python)"
+
+export PYSPARK_PYTHON="$VENV_PY"
+export PYSPARK_DRIVER_PYTHON="$VENV_PY"
 
 cd "$PANOPTO_ROOT"
-exec "$PANOPTO_LOCAL_VENV/bin/python" "$PANOPTO_ROOT/scripts/local_smoke.py" "$@"
+exec "$VENV_PY" "$PANOPTO_ROOT/scripts/local_smoke.py" "$@"

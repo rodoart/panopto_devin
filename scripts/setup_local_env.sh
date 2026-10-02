@@ -19,11 +19,26 @@ echo "panopto: JAVA_HOME    = ${JAVA_HOME:-<sin detectar>}"
 echo "panopto: venv         = $PANOPTO_LOCAL_VENV"
 echo "panopto: requirements = $PANOPTO_LOCAL_REQUIREMENTS"
 
+if ! panopto_python_supported "$PYTHON"; then
+    echo "panopto: ERROR: $PYTHON no es Python 3.8-3.11 (PySpark 3.3 no soporta 3.12+)." >&2
+    echo "panopto: usa PANOPTO_LOCAL_PYTHON=/ruta/a/python3.11 para forzar otro intérprete." >&2
+    exit 1
+fi
+
+# Un venv existente con otra versión de Python deja site-packages incompatible;
+# si el intérprete del venv difiere, hay que reconstruirlo desde cero.
+EXISTING_PY="$(panopto_venv_python)"
+if [[ -x "$EXISTING_PY" ]] && ! panopto_python_supported "$EXISTING_PY"; then
+    echo "panopto: el venv existente usa un Python no soportado; reconstruyendo..."
+    rm -rf "$PANOPTO_LOCAL_VENV"
+fi
+
 "$PYTHON" -m venv "$PANOPTO_LOCAL_VENV"
-"$PANOPTO_LOCAL_VENV/bin/pip" install --upgrade pip
-"$PANOPTO_LOCAL_VENV/bin/pip" install -r "$PANOPTO_LOCAL_REQUIREMENTS"
+VENV_PY="$(panopto_venv_python)"
+"$VENV_PY" -m pip install --upgrade pip
+"$VENV_PY" -m pip install -r "$PANOPTO_LOCAL_REQUIREMENTS"
 # Instala el paquete panopto en modo editable para que `import panopto` funcione
 # desde cualquier cwd dentro del venv.
-"$PANOPTO_LOCAL_VENV/bin/pip" install -e "$PANOPTO_ROOT" --no-deps
+"$VENV_PY" -m pip install -e "$PANOPTO_ROOT" --no-deps
 
-echo "panopto: ambiente local listo. Actívalo con: source $PANOPTO_LOCAL_VENV/bin/activate"
+echo "panopto: ambiente local listo. Actívalo con: source $PANOPTO_LOCAL_VENV/$(panopto_venv_bin)/activate"

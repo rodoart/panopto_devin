@@ -20,6 +20,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from panopto.config import load_env_file
+
+# Ambiente local: .env.local (o PANOPTO_ENV_FILE) fija Postgres/tables.json.
+# Debe correr antes de importar panopto.config.tables. En el cluster no-op.
+load_env_file()
+
 from panopto.config.tables import PROCESS_CONFIG
 from panopto.dashboard.data import DashboardData
 

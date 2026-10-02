@@ -8,6 +8,41 @@ __path__ = [os.path.join(os.path.dirname(__file__), "config")]
 from dataclasses import dataclass
 
 
+def load_env_file(path: Optional[str] = None) -> bool:
+    """Carga un archivo ``KEY=VALUE`` en ``os.environ`` sin sobreescribir lo ya definido.
+
+    Orden de búsqueda: ``path`` explícito, ``PANOPTO_ENV_FILE``, y luego
+    ``.env.local`` en la raíz del repo o en el directorio actual. En el
+    cluster ninguno existe → no-op (la config llega por variables de entorno
+    del DAG); en local permite que ``streamlit run`` funcione sin precargar
+    ``.env.local`` en la shell.
+
+    Debe llamarse ANTES de importar ``panopto.config.tables`` (que lee
+    ``PANOPTO_TABLES_JSON`` al cargarse).
+    """
+    from pathlib import Path
+
+    candidates = []
+    if path:
+        candidates.append(Path(path))
+    elif os.getenv("PANOPTO_ENV_FILE"):
+        candidates.append(Path(os.environ["PANOPTO_ENV_FILE"]))
+    else:
+        repo_root = Path(__file__).resolve().parents[1]
+        candidates.extend([repo_root / ".env.local", Path.cwd() / ".env.local"])
+    for candidate in candidates:
+        if not candidate.is_file():
+            continue
+        for line in candidate.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        return True
+    return False
+
+
 @dataclass
 class Settings:
     """Clase de datos que representa Settings."""

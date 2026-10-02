@@ -15,19 +15,65 @@ PANOPTO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PANOPTO_LOCAL_VENV="${PANOPTO_LOCAL_VENV:-$PANOPTO_ROOT/.venv-local}"
 PANOPTO_LOCAL_REQUIREMENTS="${PANOPTO_LOCAL_REQUIREMENTS:-$PANOPTO_ROOT/requirements-local.txt}"
 
+panopto_is_windows() {
+    case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+panopto_venv_bin() {
+    # Layout del venv: "Scripts" en Windows, "bin" en POSIX.
+    if panopto_is_windows || [[ -d "$PANOPTO_LOCAL_VENV/Scripts" ]]; then
+        echo "Scripts"
+    else
+        echo "bin"
+    fi
+}
+
+panopto_venv_python() {
+    local bin
+    bin="$(panopto_venv_bin)"
+    local py="$PANOPTO_LOCAL_VENV/$bin/python"
+    if [[ "$bin" == "Scripts" ]]; then py="$py.exe"; fi
+    echo "$py"
+}
+
+panopto_python_supported() {
+    # PySpark 3.3 soporta Python 3.8-3.11 (3.12+ rompe por distutils/numpy).
+    local py="$1" ver
+    ver="$("$py" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)" || return 1
+    case "$ver" in
+        3.8|3.9|3.10|3.11) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 panopto_pick_python() {
     if [[ -n "${PANOPTO_LOCAL_PYTHON:-}" ]]; then
         echo "$PANOPTO_LOCAL_PYTHON"
         return 0
     fi
+    # En Windows el launcher `py` resuelve versiones concretas (python3 suele ser
+    # el stub de Microsoft Store, hoy 3.13, incompatible con PySpark 3.3).
+    if command -v py >/dev/null 2>&1; then
+        local minor exe
+        for minor in 3.11 3.10 3.9 3.8; do
+            exe="$(py "-$minor" -c 'import sys; print(sys.executable)' 2>/dev/null)" || continue
+            if [[ -n "$exe" ]]; then
+                echo "$exe"
+                return 0
+            fi
+        done
+    fi
     local candidate
-    for candidate in python3.10 python3.9 python3.8 python3; do
-        if command -v "$candidate" >/dev/null 2>&1; then
+    for candidate in python3.11 python3.10 python3.9 python3.8 python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && panopto_python_supported "$candidate"; then
             command -v "$candidate"
             return 0
         fi
     done
-    echo "panopto: no se encontró un intérprete Python (se buscó 3.10/3.9/3.8/3)" >&2
+    echo "panopto: no se encontró un intérprete Python 3.8-3.11 (PySpark 3.3 no soporta 3.12+)" >&2
     return 1
 }
 
@@ -60,9 +106,19 @@ panopto_setup_java() {
 }
 
 panopto_ensure_venv() {
-    # Crea el venv local si no existe todavía.
-    if [[ ! -x "$PANOPTO_LOCAL_VENV/bin/python" ]]; then
-        echo "panopto: venv local no encontrado en $PANOPTO_LOCAL_VENV; creándolo..."
-        "$PANOPTO_ROOT/scripts/setup_local_env.sh"
+    # Crea el venv local si no existe todavía. Si existe pero con un Python
+    # no soportado (p.ej. recreado con el stub 3.13 de Microsoft Store), lo
+    # descarta y lo reconstruye — un venv mezclado importa binarios rotos.
+    local venv_py
+    venv_py="$(panopto_venv_python)"
+    if [[ -x "$venv_py" ]] && panopto_python_supported "$venv_py"; then
+        return 0
     fi
+    if [[ -d "$PANOPTO_LOCAL_VENV" ]]; then
+        echo "panopto: venv en $PANOPTO_LOCAL_VENV tiene un Python no soportado; reconstruyendo..."
+        rm -rf "$PANOPTO_LOCAL_VENV"
+    else
+        echo "panopto: venv local no encontrado en $PANOPTO_LOCAL_VENV; creándolo..."
+    fi
+    "$PANOPTO_ROOT/scripts/setup_local_env.sh"
 }

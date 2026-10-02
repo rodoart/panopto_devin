@@ -4,9 +4,11 @@ El dashboard Streamlit (``panopto/dashboard/app.py``) lee exclusivamente de las
 copias en PostgreSQL; este módulo las refresca de forma incremental:
 
 - Por cada tabla se comparan las particiones ``(information_date, model_id)``
-  de Hive contra Postgres (por conteo de filas).
-- Las particiones faltantes o con distinto conteo se reemplazan
-  (``DELETE`` + ``INSERT``); las que solo existen en Postgres se borran.
+  de Hive contra Postgres.
+- Las particiones presentes en Hive se reemplazan siempre (``DELETE`` +
+  ``INSERT``): un reproceso puede cambiar valores sin cambiar el conteo, así
+  que comparar por número de filas dejaría datos obsoletos. Las que solo
+  existen en Postgres se borran.
 - Se puede acotar a un ``information_date``/``model_id`` (p. ej. el ``conf`` del
   DAG que dispara la corrida); el diff se aplica solo dentro de ese ámbito.
 - Las tablas Postgres se crean si no existen: las de tablas físicas derivan sus
@@ -169,9 +171,9 @@ def sync_dashboard(
 ) -> None:
     """Sincroniza las tablas del dashboard de Hive hacia PostgreSQL.
 
-    Solo reescribe las particiones ``(information_date, model_id)`` nuevas o
-    modificadas (por conteo de filas) y elimina particiones huérfanas en
-    Postgres dentro del ámbito indicado.
+    Reescribe todas las particiones ``(information_date, model_id)`` de Hive
+    dentro del ámbito indicado (un reproceso puede cambiar valores sin cambiar
+    el conteo de filas) y elimina particiones huérfanas en Postgres.
     """
     schemas = OutputSchemas()
     scope = f"information_date={information_date or '*'}, model_id={model_id or '*'}"
@@ -187,7 +189,7 @@ def sync_dashboard(
             with conn.cursor() as cur:
                 _ensure_table(cur, columns, pg_table)
                 pg_partitions = _pg_partition_counts(cur, pg_table, information_date, model_id)
-                stale = {k for k, c in hive_partitions.items() if pg_partitions.get(k) != c}
+                stale = set(hive_partitions)
                 orphan = set(pg_partitions) - set(hive_partitions)
                 for info_date, m_id in stale:
                     n = _sync_partition(spark, cur, hive_table, pg_table, info_date, m_id)
